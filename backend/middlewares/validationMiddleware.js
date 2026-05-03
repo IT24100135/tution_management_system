@@ -3,7 +3,7 @@ const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value |
 const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const validateRegister = (req, res, next) => {
-  const { name, email, password, requestedRole, subject } = req.body;
+  const { name, email, password, requestedRole, subject, grade } = req.body;
 
   if (!name || !email || !password) {
     return res.status(400).json({ message: 'Name, email, and password are required.' });
@@ -23,6 +23,14 @@ const validateRegister = (req, res, next) => {
 
   if (['teacher', 'tutor'].includes(requestedRole) && !String(subject || '').trim()) {
     return res.status(400).json({ message: 'Subject is required for tutor registration.' });
+  }
+
+  if ((!requestedRole || requestedRole === 'student') && !String(grade || '').trim()) {
+    return res.status(400).json({ message: 'Grade is required for student registration.' });
+  }
+
+  if (grade !== undefined && typeof grade !== 'string') {
+    return res.status(400).json({ message: 'Grade must be a text value.' });
   }
 
   return next();
@@ -432,6 +440,150 @@ const validateLeaveRequestUpdate = (req, res, next) => {
   return next();
 };
 
+const validatePaymentSubmit = (req, res, next) => {
+  const { monthKey, amount, grade, receipt } = req.body;
+
+  if (!monthKey || !/^\d{4}-\d{2}$/.test(String(monthKey).trim())) {
+    return res.status(400).json({ message: 'monthKey must be in YYYY-MM format.' });
+  }
+
+  if (amount === undefined || Number.isNaN(Number(amount)) || Number(amount) < 0) {
+    return res.status(400).json({ message: 'Amount must be a non-negative number.' });
+  }
+
+  if (!String(grade || '').trim()) {
+    return res.status(400).json({ message: 'Grade is required for payment submission.' });
+  }
+
+  if (!receipt || typeof receipt !== 'object') {
+    return res.status(400).json({ message: 'Receipt file is required.' });
+  }
+
+  if (!String(receipt.fileName || '').trim()) {
+    return res.status(400).json({ message: 'Receipt file name is required.' });
+  }
+
+  if (!String(receipt.mimeType || '').trim()) {
+    return res.status(400).json({ message: 'Receipt file type is required.' });
+  }
+
+  if (!String(receipt.dataUrl || '').trim()) {
+    return res.status(400).json({ message: 'Receipt file data is required.' });
+  }
+
+  return next();
+};
+
+const validatePaymentStatusUpdate = (req, res, next) => {
+  const allowedFields = ['status', 'adminNote'];
+  const payloadFields = Object.keys(req.body);
+
+  if (payloadFields.length === 0) {
+    return res.status(400).json({ message: 'Provide at least one field to update.' });
+  }
+
+  const hasInvalidField = payloadFields.some((field) => !allowedFields.includes(field));
+  if (hasInvalidField) {
+    return res.status(400).json({ message: 'Request contains unsupported fields.' });
+  }
+
+  if (req.body.status && !['Pending', 'Paid', 'Rejected'].includes(req.body.status)) {
+    return res.status(400).json({ message: 'Status must be Pending, Paid, or Rejected.' });
+  }
+
+  if (req.body.adminNote !== undefined && typeof req.body.adminNote !== 'string') {
+    return res.status(400).json({ message: 'Admin note must be a text value.' });
+  }
+
+  return next();
+};
+
+const validateSalarySync = (req, res, next) => {
+  const { monthKey } = req.body;
+
+  if (monthKey !== undefined && !/^\d{4}-\d{2}$/.test(String(monthKey).trim())) {
+    return res.status(400).json({ message: 'monthKey must be in YYYY-MM format.' });
+  }
+
+  return next();
+};
+
+const validateSalaryStatusUpdate = (req, res, next) => {
+  const allowedFields = ['status', 'adminNote'];
+  const payloadFields = Object.keys(req.body);
+
+  if (payloadFields.length === 0) {
+    return res.status(400).json({ message: 'Provide at least one field to update.' });
+  }
+
+  const hasInvalidField = payloadFields.some((field) => !allowedFields.includes(field));
+  if (hasInvalidField) {
+    return res.status(400).json({ message: 'Request contains unsupported fields.' });
+  }
+
+  if (req.body.status && !['Pending', 'Paid', 'Inactive'].includes(req.body.status)) {
+    return res.status(400).json({ message: 'Status must be Pending, Paid, or Inactive.' });
+  }
+
+  if (req.body.adminNote !== undefined && typeof req.body.adminNote !== 'string') {
+    return res.status(400).json({ message: 'Admin note must be a text value.' });
+  }
+
+  return next();
+};
+
+const validateExamMarksSave = (req, res, next) => {
+  const { subject, entries } = req.body;
+
+  if (subject !== undefined && typeof subject !== 'string') {
+    return res.status(400).json({ message: 'Subject must be a text value.' });
+  }
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return res.status(400).json({ message: 'Entries must be a non-empty array.' });
+  }
+
+  const hasInvalidEntry = entries.some((entry) => (
+    !entry
+    || typeof entry !== 'object'
+    || !String(entry.studentId || '').trim()
+    || (entry.absent !== undefined && typeof entry.absent !== 'boolean')
+    || !(
+      entry.score === ''
+      || entry.score === null
+      || entry.score === undefined
+      || (!Number.isNaN(Number(entry.score)) && Number(entry.score) >= 0 && Number(entry.score) <= 100)
+    )
+  ));
+
+  if (hasInvalidEntry) {
+    return res.status(400).json({ message: 'Each mark entry must include studentId, an optional absent flag, and a score between 0 and 100 or an empty value.' });
+  }
+
+  return next();
+};
+
+const validateAttendanceSubmit = (req, res, next) => {
+  const { entries } = req.body;
+
+  if (!Array.isArray(entries) || entries.length === 0) {
+    return res.status(400).json({ message: 'Attendance entries must be a non-empty array.' });
+  }
+
+  const hasInvalidEntry = entries.some((entry) => (
+    !entry
+    || typeof entry !== 'object'
+    || !String(entry.studentId || '').trim()
+    || !['Present', 'Absent'].includes(String(entry.status || '').trim())
+  ));
+
+  if (hasInvalidEntry) {
+    return res.status(400).json({ message: 'Each attendance entry must include studentId and a status of Present or Absent.' });
+  }
+
+  return next();
+};
+
 module.exports = {
   validateRegister,
   validateLogin,
@@ -451,4 +603,10 @@ module.exports = {
   validateSuggestionUpdate,
   validateLeaveRequestCreate,
   validateLeaveRequestUpdate,
+  validatePaymentSubmit,
+  validatePaymentStatusUpdate,
+  validateSalarySync,
+  validateSalaryStatusUpdate,
+  validateExamMarksSave,
+  validateAttendanceSubmit,
 };

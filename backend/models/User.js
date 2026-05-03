@@ -25,6 +25,11 @@ const userSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
+    grade: {
+      type: String,
+      trim: true,
+      default: '',
+    },
     role: {
       type: String,
       enum: ['admin', 'teacher', 'student'],

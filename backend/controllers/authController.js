@@ -19,6 +19,7 @@ const sanitizeUser = (user) => ({
   name: user.name,
   email: user.email,
   subject: user.subject || '',
+  grade: user.grade || '',
   role: user.role,
   requestedRole: user.requestedRole || user.role || 'student',
   approvalStatus: user.approvalStatus || 'approved',
@@ -35,7 +36,7 @@ const sanitizeUser = (user) => ({
  */
 const register = async (req, res) => {
   try {
-    const { name, email, password, requestedRole, subject } = req.body;
+    const { name, email, password, requestedRole, subject, grade } = req.body;
 
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser) {
@@ -49,6 +50,7 @@ const register = async (req, res) => {
       email,
       password,
       subject: normalizedRequestedRole === 'teacher' ? String(subject || '').trim() : '',
+      grade: normalizedRequestedRole === 'student' ? String(grade || '').trim() : '',
       role: 'student',
       requestedRole: normalizedRequestedRole,
       approvalStatus: 'pending',
