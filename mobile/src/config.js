@@ -4,6 +4,12 @@ import Constants from 'expo-constants';
 const DEFAULT_PORT = '5000';
 
 const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
+const readExpoExtra = () => (
+  Constants.expoConfig?.extra
+  || Constants.manifest2?.extra
+  || Constants.manifest?.extra
+  || {}
+);
 
 const extractHost = (value = '') => {
   const normalizedValue = String(value || '').trim();
@@ -41,6 +47,12 @@ const resolveApiBaseUrl = () => {
   // EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:5000
   const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (envBaseUrl) return trimTrailingSlash(envBaseUrl);
+
+  // Stable explicit override from Expo config.
+  const expoExtra = readExpoExtra();
+  if (expoExtra.apiBaseUrl) {
+    return trimTrailingSlash(expoExtra.apiBaseUrl);
+  }
 
   // Expo Go on physical devices usually exposes your dev machine host.
   const expoHost = getHostFromExpo();
