@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
@@ -770,7 +770,12 @@ const AuthScreen = ({ onAuthenticated }) => {
                   <Text style={auth.selectArrow}>{showGradeOptions ? '^' : 'v'}</Text>
                 </TouchableOpacity>
                 {showGradeOptions ? (
-                  <View style={auth.selectOptions}>
+                  <ScrollView
+                    style={auth.selectOptions}
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
                     {COURSE_GRADE_OPTIONS.map((option) => (
                       <TouchableOpacity
                         key={option}
@@ -785,7 +790,7 @@ const AuthScreen = ({ onAuthenticated }) => {
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </ScrollView>
                 ) : null}
               </View>
             )}
@@ -806,7 +811,12 @@ const AuthScreen = ({ onAuthenticated }) => {
                   <Text style={auth.selectArrow}>{showSubjectOptions ? '^' : 'v'}</Text>
                 </TouchableOpacity>
                 {showSubjectOptions ? (
-                  <View style={auth.selectOptions}>
+                  <ScrollView
+                    style={auth.selectOptions}
+                    nestedScrollEnabled
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                  >
                     {PROJECT_SUBJECT_OPTIONS.map((option) => (
                       <TouchableOpacity
                         key={option.value}
@@ -821,7 +831,7 @@ const AuthScreen = ({ onAuthenticated }) => {
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </View>
+                  </ScrollView>
                 ) : null}
               </View>
             )}
@@ -1185,7 +1195,7 @@ const shared = StyleSheet.create({
     shadowRadius: 6,
     elevation: 3,
   },
-  statIcon: { fontSize: 22, marginBottom: 4 },
+  statIcon: { fontSize: 15, fontWeight: '800', marginBottom: 6, letterSpacing: 0.6 },
   statNum: { fontSize: 26, fontWeight: '800' },
   statLabel: { fontSize: 11, color: '#64748b', marginTop: 2, textAlign: 'center' },
   sectionHeader: {
@@ -1603,7 +1613,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const [timetable, setTimetable] = useState([]);
   const [ttGrade, setTtGrade] = useState('');
   const [showTtGradeOptions, setShowTtGradeOptions] = useState(false);
-  const [ttViewGrade, setTtViewGrade] = useState(ALL_GRADES_FILTER);
+  const [ttViewGrade, setTtViewGrade] = useState(COURSE_GRADE_OPTIONS[0]);
   const [showTtViewGradeOptions, setShowTtViewGradeOptions] = useState(false);
   const [ttCourseId, setTtCourseId] = useState('');
   const [showTtCourseOptions, setShowTtCourseOptions] = useState(false);
@@ -1621,6 +1631,8 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const [ttSaving, setTtSaving] = useState(false);
   const [ttEditingId, setTtEditingId] = useState('');
   const [ttDeletingId, setTtDeletingId] = useState('');
+  const adminScrollRef = useRef(null);
+  const adminTimetableEditorOffsetRef = useRef(0);
 
   const loadAll = async () => {
     setLoading(true);
@@ -1940,6 +1952,36 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     setShowTtTutorOptions(false);
   };
 
+  const openTimetableSlotEditor = (day, slot, entry = null) => {
+    const scrollToEditor = () => {
+      setTimeout(() => {
+        const targetY = Math.max(adminTimetableEditorOffsetRef.current - 24, 0);
+        const scrollView = adminScrollRef.current;
+        if (scrollView && typeof scrollView.scrollTo === 'function') {
+          scrollView.scrollTo({ y: targetY, animated: true });
+        }
+      }, 120);
+    };
+
+    if (entry) {
+      beginTimetableEdit(entry);
+      scrollToEditor();
+      return;
+    }
+
+    if (!ttViewGrade || ttViewGrade === ALL_GRADES_FILTER) {
+      Alert.alert('Select Grade', 'Choose a grade first so the slot can be assigned correctly.');
+      return;
+    }
+
+    resetTimetableForm();
+    setTtGrade(ttViewGrade);
+    setTtDay(day);
+    setTtStart(slot.startTime);
+    setTtEnd(slot.endTime);
+    scrollToEditor();
+  };
+
   const selectTimetableStartTime = (slot) => {
     setTtStart(slot.start);
     setTtEnd(slot.end);
@@ -1963,6 +2005,46 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     setShowTtTutorOptions(false);
   };
 
+  const findTimetableAssignmentConflict = ({
+    entryId,
+    dayOfWeek,
+    startTime,
+    endTime,
+    room,
+    tutorName,
+  }) => {
+    const normalizedRoom = String(room || '').trim().toLowerCase();
+    const normalizedTutorName = String(tutorName || '').trim().toLowerCase();
+    const conflictingEntries = timetable.filter((entry) => (
+      String(entry._id || '') !== String(entryId || '')
+      && entry.dayOfWeek === dayOfWeek
+      && entry.startTime === startTime
+      && entry.endTime === endTime
+    ));
+
+    if (normalizedRoom) {
+      const hallConflict = conflictingEntries.find((entry) => (
+        String(entry.room || '').trim().toLowerCase() === normalizedRoom
+      ));
+
+      if (hallConflict) {
+        return `Hall ${room} is already assigned to ${String(hallConflict.subject || hallConflict.title || 'another class').trim()} during this time slot.`;
+      }
+    }
+
+    if (normalizedTutorName) {
+      const tutorConflict = conflictingEntries.find((entry) => (
+        String(entry.tutorName || '').trim().toLowerCase() === normalizedTutorName
+      ));
+
+      if (tutorConflict) {
+        return `Tutor ${tutorName} is already assigned to ${String(tutorConflict.subject || tutorConflict.title || 'another class').trim()} during this time slot.`;
+      }
+    }
+
+    return '';
+  };
+
   const saveTimetable = async () => {
     const selectedCourse = courses.find((course) => course._id === ttCourseId) || null;
     const selectedTimeSlot = TIMETABLE_TIME_SLOTS.find((slot) => slot.start === ttStart && slot.end === ttEnd) || null;
@@ -1976,6 +2058,20 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     }
     if (!selectedTimeSlot) {
       Alert.alert('Invalid Time', 'Please select a valid 1-hour time slot.');
+      return;
+    }
+
+    const assignmentConflictMessage = findTimetableAssignmentConflict({
+      entryId: ttEditingId,
+      dayOfWeek: ttDay,
+      startTime: ttStart,
+      endTime: ttEnd,
+      room: ttRoom,
+      tutorName: ttTutor,
+    });
+
+    if (assignmentConflictMessage) {
+      Alert.alert('Schedule Conflict', assignmentConflictMessage);
       return;
     }
 
@@ -2310,6 +2406,8 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     return {
       slot: label,
       key,
+      startTime,
+      endTime,
       cells: STUDENT_WEEK_DAYS.map((day) => {
         const entry = filteredTimetableEntries.find(
           (item) => item.dayOfWeek === day && item.startTime === startTime && item.endTime === endTime
@@ -2330,10 +2428,32 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const selectedTtTimeSlot = TIMETABLE_TIME_SLOTS.find((slot) => slot.start === ttStart && slot.end === ttEnd) || null;
   const timetableEndOptions = selectedTtTimeSlot ? [selectedTtTimeSlot] : [];
   const selectedTtCourse = courses.find((course) => course._id === ttCourseId) || null;
+  const selectedAdminTimetableEntry = ttEditingId
+    ? timetable.find((entry) => entry._id === ttEditingId) || null
+    : null;
   const getTimetableEntryTitle = (entry) => formatTimetableEntryTitle(entry, courses);
+  const selectedTimetableSlotLabel = selectedTtTimeSlot
+    ? `${selectedTtTimeSlot.label} • ${ttDay || 'Day not selected'}`
+    : '';
   const adminMySuggestions = adminSuggestions.filter((item) => (
     String(item.createdBy?._id || item.createdBy?.id || item.createdBy || '') === String(user.id || user._id || '')
   ));
+  const selectedTimetableTimeLabel = ttStart && ttEnd
+    ? `${formatTimetableTime(ttStart)} - ${formatTimetableTime(ttEnd)}`
+    : '';
+  const selectedTimetableSelectionLabel = ttDay && selectedTimetableTimeLabel
+    ? `${ttDay} • ${selectedTimetableTimeLabel}`
+    : selectedTimetableTimeLabel || ttDay || '';
+  const timetableAssignmentConflictMessage = selectedTimetableSelectionLabel
+    ? findTimetableAssignmentConflict({
+      entryId: ttEditingId,
+      dayOfWeek: ttDay,
+      startTime: ttStart,
+      endTime: ttEnd,
+      room: ttRoom,
+      tutorName: ttTutor,
+    })
+    : '';
   const selectedSuggestion = adminSuggestions.find((item) => item._id === selectedSuggestionId) || null;
   const selectedLeaveRequest = leaveRequests.find((item) => item._id === selectedLeaveRequestId) || null;
   const pendingLeaveRequests = leaveRequests.filter((item) => item.status === 'Pending');
@@ -2357,6 +2477,13 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const selectedExam = examOptions.find((exam) => exam.id === selectedExamId) || examOptions[0] || null;
   const adminExamSubjects = examGradebook?.subjects || [];
   const adminExamRows = examGradebook?.rows || [];
+  const sortedAdminTimetableEntries = [...filteredTimetableEntries].sort((firstEntry, secondEntry) => (
+    (TIMETABLE_DAYS.indexOf(firstEntry.dayOfWeek) - TIMETABLE_DAYS.indexOf(secondEntry.dayOfWeek))
+    || (timeStringToMinutes(firstEntry.startTime) - timeStringToMinutes(secondEntry.startTime))
+    || String(firstEntry.subject || firstEntry.title || '').localeCompare(String(secondEntry.subject || secondEntry.title || ''))
+  ));
+  const openAdminSuggestions = adminSuggestions.filter((item) => item.status === 'Open' || item.status === 'In Review');
+  const resolvedAdminSuggestions = adminSuggestions.filter((item) => item.status === 'Resolved' || item.status === 'Closed');
   const adminMenuItems = [
     { key: 'overview', label: 'Dashboard' },
     { key: 'users', label: 'Users' },
@@ -2425,7 +2552,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
         ))}
       </View>
 
-      <ScrollView style={{ flex: 1 }} contentContainerStyle={adm.scroll}>
+      <ScrollView ref={adminScrollRef} style={{ flex: 1 }} contentContainerStyle={adm.scroll}>
         {loading && <ActivityIndicator color="#7c3aed" style={{ marginTop: 20 }} />}
 
         {!loading && tab === 'overview' && (
@@ -2443,9 +2570,9 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
               <WebMetricCard label="All Class Attendance" value={timetable.length} badge="AT" accent="#0f172a" />
             </View>
             <View style={adm.statsRow}>
-              <StatCard icon="ðŸ‘¥" number={stats.students} label="Students" color="#7c3aed" />
-              <StatCard icon="ðŸ“š" number={stats.courses} label="Courses" color="#0ea5e9" />
-              <StatCard icon="ðŸ“‹" number={stats.enrollments} label="Enrollments" color="#f59e0b" />
+              <StatCard icon="ST" number={stats.students} label="Students" color="#7c3aed" />
+              <StatCard icon="CR" number={stats.courses} label="Courses" color="#0ea5e9" />
+              <StatCard icon="EN" number={stats.enrollments} label="Enrollments" color="#f59e0b" />
             </View>
 
             <View style={adm.card}>
@@ -2728,6 +2855,139 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
           </>
         )}
 
+        {!loading && tab === 'approvals' && (
+          <>
+            <WebPageTitle
+              title="Pending Users"
+              subtitle="Review new registrations and approve the right accounts quickly."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.metricGrid}>
+              <WebMetricCard
+                label="All Pending Users"
+                value={String(pendingRequests.length)}
+                badge="PD"
+                accent="#f59e0b"
+              />
+              <WebMetricCard
+                label="Pending Students"
+                value={String(studentPendingRequests.length)}
+                badge="ST"
+                accent="#2563eb"
+              />
+              <WebMetricCard
+                label="Pending Tutors"
+                value={String(tutorPendingRequests.length)}
+                badge="TU"
+                accent="#16a34a"
+              />
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Review Queue</Text>
+              <Text style={webDash.sectionText}>
+                Switch between student and tutor requests, then approve or reject each registration.
+              </Text>
+
+              <View style={[adm.manageSwitchRow, { marginTop: 18 }]}>
+                {[
+                  { key: 'student', label: `Students (${studentPendingRequests.length})` },
+                  { key: 'teacher', label: `Tutors (${tutorPendingRequests.length})` },
+                ].map((option) => (
+                  <TouchableOpacity
+                    key={option.key}
+                    style={[
+                      adm.manageSwitchBtn,
+                      approvalView === option.key && adm.manageSwitchBtnActive,
+                    ]}
+                    onPress={() => setApprovalView(option.key)}
+                  >
+                    <Text
+                      style={[
+                        adm.manageSwitchText,
+                        approvalView === option.key && adm.manageSwitchTextActive,
+                      ]}
+                    >
+                      {option.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {filteredPendingRequests.length === 0 ? (
+                <View style={webDash.emptyBox}>
+                  <Text style={webDash.emptyText}>
+                    {approvalView === 'teacher'
+                      ? 'No pending tutor registrations right now.'
+                      : 'No pending student registrations right now.'}
+                  </Text>
+                </View>
+              ) : (
+                <View style={[webDash.table, { marginTop: 18 }]}>
+                  <View style={[webDash.tableRow, webDash.tableHeader]}>
+                    {['Full Name', 'Email', 'Role', approvalView === 'teacher' ? 'Subject' : 'Grade', 'Created At', 'Actions'].map((heading) => (
+                      <View key={heading} style={heading === 'Full Name' || heading === 'Email' ? webDash.tableCellWide : webDash.tableCell}>
+                        <Text style={webDash.tableHeadText}>{heading}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {filteredPendingRequests.map((pendingUser) => {
+                    const isBusy = reviewingRequestId === pendingUser._id;
+                    const roleLabel = (pendingUser.requestedRole || 'student') === 'teacher' ? 'Tutor' : 'Student';
+
+                    return (
+                      <View key={pendingUser._id} style={webDash.tableRow}>
+                        <View style={webDash.tableCellWide}>
+                          <Text style={[webDash.tableText, adm.userTablePrimary]}>{pendingUser.name}</Text>
+                        </View>
+                        <View style={webDash.tableCellWide}>
+                          <Text style={webDash.tableText}>{pendingUser.email}</Text>
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <StatusPill
+                            label={roleLabel}
+                            tone={(pendingUser.requestedRole || 'student') === 'teacher' ? 'green' : 'blue'}
+                          />
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <Text style={webDash.tableText}>
+                            {(pendingUser.requestedRole || 'student') === 'teacher'
+                              ? pendingUser.subject || '-'
+                              : pendingUser.grade || '-'}
+                          </Text>
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <Text style={webDash.tableText}>{formatAppDate(pendingUser.createdAt)}</Text>
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <View style={adm.approvalActions}>
+                            <TouchableOpacity
+                              style={[adm.approveBtn, isBusy && adm.actionBtnDisabled]}
+                              onPress={() => reviewRegistration(pendingUser._id, 'approve')}
+                              disabled={isBusy}
+                            >
+                              <Text style={adm.approveBtnText}>{isBusy ? 'Working...' : 'Approve'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[adm.rejectBtn, isBusy && adm.actionBtnDisabled]}
+                              onPress={() => reviewRegistration(pendingUser._id, 'reject')}
+                              disabled={isBusy}
+                            >
+                              <Text style={adm.rejectBtnText}>Reject</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
         {!loading && tab === 'students' && (
           <View style={adm.card}>
             <SectionHeader title="Add New Student" />
@@ -3002,6 +3262,973 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                 ))}
             </View>
           </View>
+        )}
+
+        {!loading && tab === 'timetable' && (
+          <>
+            <WebPageTitle
+              title="Institution Timetable"
+              subtitle="Use the fixed weekly time slots, then assign a teacher, subject, and room to each class period."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.sectionCard}>
+              <View style={adm.timetableHeroFilter}>
+                <Text style={adm.timetableFilterLabel}>Select Grade</Text>
+                <TouchableOpacity
+                  style={adm.timetableGradeSelector}
+                  onPress={() => setShowTtViewGradeOptions((current) => !current)}
+                >
+                  <Text style={adm.timetableGradeSelectorText}>{ttViewGrade}</Text>
+                  <Text style={adm.selectFieldArrow}>{showTtViewGradeOptions ? '^' : 'v'}</Text>
+                </TouchableOpacity>
+                {showTtViewGradeOptions ? (
+                  <View style={adm.selectOptions}>
+                    {COURSE_GRADE_OPTIONS.map((grade) => (
+                      <TouchableOpacity
+                        key={grade}
+                        style={[adm.selectOption, ttViewGrade === grade && adm.selectOptionActive]}
+                        onPress={() => {
+                          setTtViewGrade(grade);
+                          setShowTtViewGradeOptions(false);
+                          if (!ttEditingId) {
+                            setTtGrade(grade);
+                          }
+                        }}
+                      >
+                        <Text style={[adm.selectOptionText, ttViewGrade === grade && adm.selectOptionTextActive]}>{grade}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            </View>
+
+            <View style={adm.timetableOverviewGrid}>
+              <View style={adm.timetableOverviewCard}>
+                <Text style={adm.timetableOverviewLabel}>Grade</Text>
+                <Text style={adm.timetableOverviewValue}>{ttViewGrade}</Text>
+              </View>
+              <View style={adm.timetableOverviewCard}>
+                <Text style={adm.timetableOverviewLabel}>Scheduled Slots</Text>
+                <Text style={adm.timetableOverviewValue}>{String(filteredTimetableEntries.length)}</Text>
+              </View>
+              <View style={adm.timetableOverviewCard}>
+                <Text style={adm.timetableOverviewLabel}>Approved Tutors</Text>
+                <Text style={adm.timetableOverviewValue}>{String(tutors.length)}</Text>
+              </View>
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Weekly Timetable Grid</Text>
+              <Text style={webDash.sectionText}>Tap an empty slot to assign a class, or tap an existing class to edit it.</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={adm.adminTimetableBoard}>
+                  <View style={adm.adminTimetableHeaderRow}>
+                    <View style={adm.adminTimetableTimeHeader}>
+                      <Text style={adm.adminTimetableHeadText}>Time</Text>
+                    </View>
+                    {STUDENT_WEEK_DAYS.map((day) => (
+                      <View key={day} style={adm.adminTimetableDayHeader}>
+                        <Text style={adm.adminTimetableHeadText}>{day}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {adminTimetableRows.map((row) => (
+                    <View key={row.key} style={adm.adminTimetableGridRow}>
+                      <View style={adm.adminTimetableTimeCell}>
+                        <Text style={adm.adminTimetableTimeText}>{row.slot}</Text>
+                      </View>
+                      {row.cells.map(({ day, entry }) => (
+                        <TouchableOpacity
+                          key={`${row.key}-${day}`}
+                          style={[
+                            adm.adminTimetableSlotCell,
+                            entry ? adm.adminTimetableSlotFilled : adm.adminTimetableSlotEmpty,
+                          ]}
+                          onPress={() => openTimetableSlotEditor(day, row, entry)}
+                        >
+                          {entry ? (
+                            <>
+                              <Text style={adm.adminTimetableSlotTitle} numberOfLines={2}>
+                                {entry.subject || getTimetableEntryTitle(entry)}
+                              </Text>
+                              <Text style={adm.adminTimetableSlotMeta} numberOfLines={1}>{entry.tutorName || 'Tutor not set'}</Text>
+                              <Text style={adm.adminTimetableSlotMeta} numberOfLines={1}>{entry.room || 'Hall not set'}</Text>
+                              <Text style={adm.adminTimetableSlotHint}>Tap to edit</Text>
+                            </>
+                          ) : (
+                            <>
+                              <Text style={adm.adminTimetableSlotEmptyTitle}>Not assigned</Text>
+                              <Text style={adm.adminTimetableSlotEmptyHint}>Tap to assign</Text>
+                            </>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+              {filteredTimetableEntries.length === 0 ? (
+                <View style={adm.adminTimetableGridNote}>
+                  <Text style={adm.adminTimetableGridNoteText}>
+                    No scheduled classes are saved for {ttViewGrade} yet. Start by tapping any empty slot.
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+
+            <View
+              style={webDash.sectionCard}
+              onLayout={({ nativeEvent }) => {
+                adminTimetableEditorOffsetRef.current = nativeEvent.layout.y;
+              }}
+            >
+              <Text style={webDash.sectionTitle}>{ttEditingId ? 'Update Scheduled Slot' : 'Assign Selected Slot'}</Text>
+              <Text style={webDash.sectionText}>
+                {selectedTimetableSelectionLabel
+                  ? `Selected slot: ${selectedTimetableSelectionLabel}`
+                  : 'Select a timetable slot from the grid above to assign a subject, hall, and tutor.'}
+              </Text>
+
+              {selectedTimetableSelectionLabel ? (
+                <>
+                  <View style={adm.timetableEditorSummaryRow}>
+                    <View style={adm.timetableEditorSummaryCard}>
+                      <Text style={adm.timetableOverviewLabel}>Grade</Text>
+                      <Text style={adm.timetableOverviewValue}>{ttGrade || ttViewGrade}</Text>
+                    </View>
+                    <View style={adm.timetableEditorSummaryCard}>
+                      <Text style={adm.timetableOverviewLabel}>Day</Text>
+                      <Text style={adm.timetableOverviewValue}>{ttDay || '-'}</Text>
+                    </View>
+                    <View style={adm.timetableEditorSummaryCard}>
+                      <Text style={adm.timetableOverviewLabel}>Time Slot</Text>
+                      <Text style={adm.timetableOverviewValue}>{selectedTimetableTimeLabel || '-'}</Text>
+                    </View>
+                  </View>
+
+                  <View style={webDash.filterBar}>
+                    <View style={webDash.filterField}>
+                      <Text style={webDash.filterLabel}>Subject / Course</Text>
+                      <TouchableOpacity
+                        style={adm.paymentSelectBox}
+                        onPress={() => {
+                          if (!(ttGrade || ttViewGrade)) return;
+                          setShowTtHallOptions(false);
+                          setShowTtTutorOptions(false);
+                          setShowTtCourseOptions((current) => !current);
+                        }}
+                      >
+                        <Text style={webDash.selectText}>{selectedTtCourse ? formatCourseLabel(selectedTtCourse) : 'Select subject'}</Text>
+                        <Text style={adm.selectFieldArrow}>{showTtCourseOptions ? '^' : 'v'}</Text>
+                      </TouchableOpacity>
+                      {showTtCourseOptions ? (
+                        <View style={adm.selectOptions}>
+                          {timetableCoursesForGrade.length === 0 ? (
+                            <Text style={adm.selectEmptyText}>No courses are available for this grade yet.</Text>
+                          ) : timetableCoursesForGrade.map((course) => (
+                            <TouchableOpacity
+                              key={course._id}
+                              style={[adm.selectOption, ttCourseId === course._id && adm.selectOptionActive]}
+                              onPress={() => selectTimetableCourse(course)}
+                            >
+                              <Text style={[adm.selectOptionText, ttCourseId === course._id && adm.selectOptionTextActive]}>
+                                {formatCourseLabel(course)}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <View style={webDash.filterField}>
+                      <Text style={webDash.filterLabel}>Hall</Text>
+                      <TouchableOpacity
+                        style={adm.paymentSelectBox}
+                        onPress={() => {
+                          setShowTtCourseOptions(false);
+                          setShowTtTutorOptions(false);
+                          setShowTtHallOptions((current) => !current);
+                        }}
+                      >
+                        <Text style={webDash.selectText}>{ttRoom || 'Select hall'}</Text>
+                        <Text style={adm.selectFieldArrow}>{showTtHallOptions ? '^' : 'v'}</Text>
+                      </TouchableOpacity>
+                      {showTtHallOptions ? (
+                        <View style={adm.selectOptions}>
+                          {TIMETABLE_HALL_OPTIONS.map((hall) => (
+                            <TouchableOpacity
+                              key={hall}
+                              style={[adm.selectOption, ttRoom === hall && adm.selectOptionActive]}
+                              onPress={() => selectTimetableHall(hall)}
+                            >
+                              <Text style={[adm.selectOptionText, ttRoom === hall && adm.selectOptionTextActive]}>{hall}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+
+                    <View style={webDash.filterField}>
+                      <Text style={webDash.filterLabel}>Tutor</Text>
+                      <TouchableOpacity
+                        style={adm.paymentSelectBox}
+                        onPress={() => {
+                          if (!ttSubject) return;
+                          setShowTtCourseOptions(false);
+                          setShowTtHallOptions(false);
+                          setShowTtTutorOptions((current) => !current);
+                        }}
+                      >
+                        <Text style={webDash.selectText}>{ttTutor || (ttSubject ? 'Select tutor' : 'Select subject first')}</Text>
+                        <Text style={adm.selectFieldArrow}>{showTtTutorOptions ? '^' : 'v'}</Text>
+                      </TouchableOpacity>
+                      {showTtTutorOptions ? (
+                        <View style={adm.selectOptions}>
+                          {timetableTutorsForSubject.length === 0 ? (
+                            <Text style={adm.selectEmptyText}>No tutor is approved for this subject yet.</Text>
+                          ) : timetableTutorsForSubject.map((tutor) => (
+                            <TouchableOpacity
+                              key={tutor.id || tutor._id || tutor.email}
+                              style={[adm.selectOption, ttTutor === tutor.name && adm.selectOptionActive]}
+                              onPress={() => selectTimetableTutor(tutor.name)}
+                            >
+                              <Text style={[adm.selectOptionText, ttTutor === tutor.name && adm.selectOptionTextActive]}>{tutor.name}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      ) : null}
+                    </View>
+                  </View>
+
+                  {timetableAssignmentConflictMessage ? (
+                    <View style={adm.timetableConflictBanner}>
+                      <Text style={adm.timetableConflictText}>{timetableAssignmentConflictMessage}</Text>
+                    </View>
+                  ) : null}
+
+                  <View style={webDash.actionRow}>
+                    <TouchableOpacity
+                      style={[webDash.buttonBlue, (ttSaving || timetableAssignmentConflictMessage) && adm.actionBtnDisabled]}
+                      onPress={saveTimetable}
+                      disabled={ttSaving || Boolean(timetableAssignmentConflictMessage)}
+                    >
+                      <Text style={webDash.buttonTextLight}>{ttSaving ? 'Saving...' : (ttEditingId ? 'Update Entry' : 'Assign Slot')}</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={webDash.buttonSoft} onPress={resetTimetableForm} disabled={ttSaving}>
+                      <Text style={webDash.buttonTextBlue}>Clear Selection</Text>
+                    </TouchableOpacity>
+                    {selectedAdminTimetableEntry ? (
+                      <TouchableOpacity
+                        style={webDash.buttonRed}
+                        onPress={() => confirmDeleteTimetable(selectedAdminTimetableEntry)}
+                        disabled={ttDeletingId === selectedAdminTimetableEntry._id}
+                      >
+                        <Text style={webDash.buttonTextLight}>
+                          {ttDeletingId === selectedAdminTimetableEntry._id ? 'Deleting...' : 'Delete Entry'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </>
+              ) : (
+                <View style={webDash.emptyBox}>
+                  <Text style={webDash.emptyText}>Tap a timetable cell to start assigning a class.</Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {!loading && tab === 'leaveRequests' && (
+          <>
+            <WebPageTitle
+              title="Leave Requests"
+              subtitle="Review tutor leave requests, approve or reject them, and send back an admin reply."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.metricGrid}>
+              <WebMetricCard label="Total Requests" value={String(leaveRequests.length)} badge="TR" accent="#2563eb" />
+              <WebMetricCard label="Pending" value={String(pendingLeaveRequests.length)} badge="PD" accent="#f59e0b" />
+              <WebMetricCard label="Resolved" value={String(resolvedLeaveRequests.length)} badge="RS" accent="#16a34a" />
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Request Queue</Text>
+              <Text style={webDash.sectionText}>Use the quick actions for fast decisions or open a request to write a detailed reply.</Text>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                <View style={[webDash.table, adm.leaveTable]}>
+                  <View style={[webDash.tableRow, webDash.tableHeader, adm.leaveTableRow]}>
+                    {['Requester', 'Role', 'Leave Date', 'Reason', 'Status', 'Admin Reply', 'Actions'].map((heading) => (
+                      <View key={heading} style={heading === 'Requester' || heading === 'Reason' || heading === 'Admin Reply' ? webDash.tableCellWide : webDash.tableCell}>
+                        <Text style={webDash.tableHeadText}>{heading}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {leaveRequests.length === 0 ? (
+                    <View style={[webDash.tableRow, adm.leaveTableRow]}>
+                      <View style={adm.leaveEmptyCell}>
+                        <Text style={adm.leaveEmptyText}>No leave requests are available right now.</Text>
+                      </View>
+                    </View>
+                  ) : leaveRequests.map((item) => (
+                    <View key={item._id} style={[webDash.tableRow, adm.leaveTableRow]}>
+                      <View style={webDash.tableCellWide}>
+                        <Text style={[webDash.tableText, { fontWeight: '900' }]}>{item.createdBy?.name || 'Tutor'}</Text>
+                        <Text style={webDash.tableText}>{item.createdBy?.email || '-'}</Text>
+                      </View>
+                      <View style={webDash.tableCell}><Text style={webDash.tableText}>{item.createdBy?.role || '-'}</Text></View>
+                      <View style={webDash.tableCell}><Text style={webDash.tableText}>{item.leaveDate}</Text></View>
+                      <View style={webDash.tableCellWide}><Text style={webDash.tableText}>{item.reason}</Text></View>
+                      <View style={webDash.tableCell}>
+                        <StatusPill
+                          label={item.status}
+                          tone={item.status === 'Approved' ? 'green' : item.status === 'Rejected' ? 'red' : 'yellow'}
+                        />
+                      </View>
+                      <View style={webDash.tableCellWide}><Text style={webDash.tableText}>{item.adminReply || '-'}</Text></View>
+                      <View style={webDash.tableCell}>
+                        <View style={adm.leaveActionStack}>
+                          <TouchableOpacity style={webDash.buttonSoft} onPress={() => beginLeaveRequestReview(item)}>
+                            <Text style={webDash.buttonTextBlue}>Review</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[webDash.buttonGreen, savingLeaveReview && adm.leaveActionDisabled]}
+                            onPress={() => reviewLeaveRequestInline(item, 'Approved')}
+                            disabled={savingLeaveReview}
+                          >
+                            <Text style={webDash.buttonTextLight}>Approve</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[webDash.buttonRed, savingLeaveReview && adm.leaveActionDisabled]}
+                            onPress={() => reviewLeaveRequestInline(item, 'Rejected')}
+                            disabled={savingLeaveReview}
+                          >
+                            <Text style={webDash.buttonTextLight}>Reject</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Selected Request Review</Text>
+              {selectedLeaveRequest ? (
+                <>
+                  <View style={webDash.detailGrid}>
+                    <DetailField label="Tutor" value={selectedLeaveRequest.createdBy?.name || '-'} />
+                    <DetailField label="Date" value={selectedLeaveRequest.leaveDate} />
+                    <DetailField label="Reason" value={selectedLeaveRequest.reason} />
+                  </View>
+                  <View style={[webDash.segmentRow, { marginTop: 18 }]}>
+                    {['Pending', 'Approved', 'Rejected'].map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[webDash.segmentButton, leaveReviewStatus === status && webDash.segmentButtonActive]}
+                        onPress={() => setLeaveReviewStatus(status)}
+                      >
+                        <Text style={[webDash.segmentText, leaveReviewStatus === status && webDash.segmentTextActive]}>{status}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={webDash.filterLabel}>Admin Reply</Text>
+                  <TextInput
+                    style={[webDash.formInput, webDash.textArea]}
+                    placeholder="Write a reply for this leave request"
+                    value={leaveAdminReply}
+                    onChangeText={setLeaveAdminReply}
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={[webDash.buttonBlue, { marginTop: 18 }]}
+                    onPress={saveLeaveRequestReview}
+                    disabled={savingLeaveReview}
+                  >
+                    <Text style={webDash.buttonTextLight}>{savingLeaveReview ? 'Saving...' : 'Save Review'}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={webDash.emptyBox}>
+                  <Text style={webDash.emptyText}>Select a leave request from the table above to review it here.</Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {!loading && tab === 'studentPayments' && (
+          <>
+            <WebPageTitle
+              title="Student Payment Details"
+              subtitle="Track every submitted payment receipt and update the payment status quickly."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.metricGrid}>
+              <WebMetricCard label="Total Payments" value={String(payments.length)} badge="PM" accent="#2563eb" />
+              <WebMetricCard label="Pending" value={String(payments.filter((item) => item.status === 'Pending').length)} badge="PD" accent="#f59e0b" />
+              <WebMetricCard label="Paid" value={String(payments.filter((item) => item.status === 'Paid').length)} badge="OK" accent="#16a34a" />
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Payment Queue</Text>
+              <Text style={webDash.sectionText}>Filter by grade and review uploaded receipts with quick status actions.</Text>
+
+              <View style={webDash.filterBar}>
+                <View style={webDash.filterField}>
+                  <Text style={webDash.filterLabel}>Grade</Text>
+                  <TouchableOpacity
+                    style={adm.paymentSelectBox}
+                    onPress={() => setShowPaymentGradeOptions((current) => !current)}
+                  >
+                    <Text style={webDash.selectText}>{paymentGradeFilter}</Text>
+                    <Text style={adm.selectFieldArrow}>{showPaymentGradeOptions ? '^' : 'v'}</Text>
+                  </TouchableOpacity>
+                  {showPaymentGradeOptions ? (
+                    <View style={adm.selectOptions}>
+                      {paymentGradeOptions.map((grade) => (
+                        <TouchableOpacity
+                          key={grade}
+                          style={[adm.selectOption, paymentGradeFilter === grade && adm.selectOptionActive]}
+                          onPress={() => {
+                            setPaymentGradeFilter(grade);
+                            setShowPaymentGradeOptions(false);
+                          }}
+                        >
+                          <Text style={[adm.selectOptionText, paymentGradeFilter === grade && adm.selectOptionTextActive]}>{grade}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={[webDash.table, adm.paymentTable]}>
+                  <View style={[webDash.tableRow, webDash.tableHeader]}>
+                    {['Student', 'Month', 'Grade', 'Amount', 'Receipt', 'Status', 'Actions'].map((heading) => (
+                      <View key={heading} style={heading === 'Student' || heading === 'Receipt' ? webDash.tableCellWide : webDash.tableCell}>
+                        <Text style={webDash.tableHeadText}>{heading}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {filteredPayments.length === 0 ? (
+                    <View style={webDash.tableRow}>
+                      <View style={adm.paymentEmptyCell}>
+                        <Text style={adm.leaveEmptyText}>No payment records match the selected grade.</Text>
+                      </View>
+                    </View>
+                  ) : filteredPayments.map((payment) => {
+                    const isBusy = reviewingPaymentId === payment.id;
+                    const receipt = payment.receipt || {};
+                    const hasReceipt = Boolean(receipt.fileName || receipt.dataUrl);
+
+                    return (
+                      <View key={payment.id} style={webDash.tableRow}>
+                        <View style={webDash.tableCellWide}>
+                          <Text style={[webDash.tableText, { fontWeight: '900' }]}>{payment.student?.name || 'Student'}</Text>
+                          <Text style={webDash.tableText}>{payment.student?.email || '-'}</Text>
+                        </View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{payment.monthLabel || payment.monthKey}</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{payment.grade || '-'}</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{formatLkr(payment.amount)}</Text></View>
+                        <View style={webDash.tableCellWide}>
+                          <Text style={webDash.tableText}>{hasReceipt ? (receipt.fileName || 'Uploaded receipt') : 'No receipt uploaded'}</Text>
+                          {payment.submittedAt ? <Text style={adm.paymentSubtext}>Submitted {formatAppDate(payment.submittedAt)}</Text> : null}
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <StatusPill label={payment.status} tone={getPaymentStatusTone(payment.status)} />
+                          {payment.adminNote ? <Text style={adm.paymentSubtext}>{payment.adminNote}</Text> : null}
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <View style={webDash.actionRow}>
+                            <TouchableOpacity
+                              style={[webDash.buttonGreen, isBusy && adm.actionBtnDisabled]}
+                              onPress={() => reviewPaymentStatus(payment.id, 'Paid')}
+                              disabled={isBusy}
+                            >
+                              <Text style={webDash.buttonTextLight}>{isBusy ? 'Working...' : 'Paid'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[webDash.buttonRed, isBusy && adm.actionBtnDisabled]}
+                              onPress={() => reviewPaymentStatus(payment.id, 'Rejected')}
+                              disabled={isBusy}
+                            >
+                              <Text style={webDash.buttonTextLight}>Reject</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          </>
+        )}
+
+        {!loading && tab === 'salaryDetails' && (
+          <>
+            <WebPageTitle
+              title="Salary Details"
+              subtitle="Review tutor salary records by month and update the payout status from the dashboard."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.metricGrid}>
+              <WebMetricCard label="Rows" value={String(salaryRows.length)} badge="SL" accent="#2563eb" />
+              <WebMetricCard label="Pending" value={String(salaryRows.filter((item) => item.status === 'Pending').length)} badge="PD" accent="#f59e0b" />
+              <WebMetricCard label="Paid" value={String(salaryRows.filter((item) => item.status === 'Paid').length)} badge="OK" accent="#16a34a" />
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Salary Status Review</Text>
+              <Text style={webDash.sectionText}>Switch the active month and year to review the current tutor salary records.</Text>
+
+              <View style={webDash.filterBar}>
+                <View style={webDash.filterField}>
+                  <Text style={webDash.filterLabel}>Month</Text>
+                  <TouchableOpacity
+                    style={adm.paymentSelectBox}
+                    onPress={() => {
+                      setShowSalaryYearOptions(false);
+                      setShowSalaryMonthOptions((current) => !current);
+                    }}
+                  >
+                    <Text style={webDash.selectText}>
+                      {SALARY_MONTH_OPTIONS.find((option) => option.value === salaryMonthFilter)?.label || 'Select month'}
+                    </Text>
+                    <Text style={adm.selectFieldArrow}>{showSalaryMonthOptions ? '^' : 'v'}</Text>
+                  </TouchableOpacity>
+                  {showSalaryMonthOptions ? (
+                    <View style={adm.selectOptions}>
+                      {SALARY_MONTH_OPTIONS.map((option) => (
+                        <TouchableOpacity
+                          key={option.value}
+                          style={[adm.selectOption, salaryMonthFilter === option.value && adm.selectOptionActive]}
+                          onPress={() => {
+                            setSalaryMonthFilter(option.value);
+                            setShowSalaryMonthOptions(false);
+                          }}
+                        >
+                          <Text style={[adm.selectOptionText, salaryMonthFilter === option.value && adm.selectOptionTextActive]}>{option.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+
+                <View style={webDash.filterField}>
+                  <Text style={webDash.filterLabel}>Year</Text>
+                  <TouchableOpacity
+                    style={adm.paymentSelectBox}
+                    onPress={() => {
+                      setShowSalaryMonthOptions(false);
+                      setShowSalaryYearOptions((current) => !current);
+                    }}
+                  >
+                    <Text style={webDash.selectText}>{salaryYearFilter}</Text>
+                    <Text style={adm.selectFieldArrow}>{showSalaryYearOptions ? '^' : 'v'}</Text>
+                  </TouchableOpacity>
+                  {showSalaryYearOptions ? (
+                    <View style={adm.selectOptions}>
+                      {salaryYearOptions.map((year) => (
+                        <TouchableOpacity
+                          key={year}
+                          style={[adm.selectOption, salaryYearFilter === year && adm.selectOptionActive]}
+                          onPress={() => {
+                            setSalaryYearFilter(year);
+                            setShowSalaryYearOptions(false);
+                          }}
+                        >
+                          <Text style={[adm.selectOptionText, salaryYearFilter === year && adm.selectOptionTextActive]}>{year}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  ) : null}
+                </View>
+              </View>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                <View style={[webDash.table, adm.salaryTable]}>
+                  <View style={[webDash.tableRow, webDash.tableHeader]}>
+                    {['Tutor', 'Subject', 'Month', 'Hours', 'Amount', 'Status', 'Actions'].map((heading) => (
+                      <View key={heading} style={heading === 'Tutor' ? webDash.tableCellWide : webDash.tableCell}>
+                        <Text style={webDash.tableHeadText}>{heading}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {salaryRows.length === 0 ? (
+                    <View style={webDash.tableRow}>
+                      <View style={adm.salaryEmptyCell}>
+                        <Text style={adm.leaveEmptyText}>No salary records are available for this period.</Text>
+                      </View>
+                    </View>
+                  ) : salaryRows.map((salary) => {
+                    const isBusy = reviewingSalaryId === salary.id;
+
+                    return (
+                      <View key={salary.id} style={webDash.tableRow}>
+                        <View style={webDash.tableCellWide}>
+                          <Text style={[webDash.tableText, { fontWeight: '900' }]}>{salary.name}</Text>
+                          {salary.reviewedAt ? <Text style={adm.salaryStatusNote}>Reviewed {formatAppDate(salary.reviewedAt)}</Text> : null}
+                        </View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{salary.subject}</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{salary.month}</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{salary.hours}</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableText}>{formatLkr(salary.amount)}</Text></View>
+                        <View style={webDash.tableCell}>
+                          <View style={adm.salaryStatusStack}>
+                            <StatusPill label={salary.status} tone={getSalaryStatusTone(salary.status)} />
+                            {salary.adminNote ? <Text style={adm.salaryStatusNote}>{salary.adminNote}</Text> : null}
+                          </View>
+                        </View>
+                        <View style={webDash.tableCell}>
+                          <View style={webDash.actionRow}>
+                            <TouchableOpacity
+                              style={[webDash.buttonGreen, isBusy && adm.actionBtnDisabled]}
+                              onPress={() => reviewSalaryStatus(salary.id, 'Paid')}
+                              disabled={isBusy}
+                            >
+                              <Text style={webDash.buttonTextLight}>{isBusy ? 'Working...' : 'Paid'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={[webDash.buttonSoft, isBusy && adm.actionBtnDisabled]}
+                              onPress={() => reviewSalaryStatus(salary.id, 'Pending')}
+                              disabled={isBusy}
+                            >
+                              <Text style={webDash.buttonTextBlue}>Pending</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            </View>
+          </>
+        )}
+
+        {!loading && tab === 'examResults' && (
+          <>
+            <WebPageTitle
+              title="Exams & Results"
+              subtitle="Select a grade and term to review the generated exam gradebook for all students."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.metricGrid}>
+              <WebMetricCard label="Selected Grade" value={selectedExamGrade} badge="GR" accent="#2563eb" />
+              <WebMetricCard label="Exams Found" value={String(examOptions.length)} badge="EX" accent="#7c3aed" />
+              <WebMetricCard label="Students Ranked" value={String(adminExamRows.length)} badge="RK" accent="#16a34a" />
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <View style={webDash.segmentRow}>
+                {COURSE_GRADE_OPTIONS.map((grade) => (
+                  <TouchableOpacity
+                    key={grade}
+                    style={[webDash.segmentButton, selectedExamGrade === grade && webDash.segmentButtonActive]}
+                    onPress={() => setSelectedExamGrade(grade)}
+                  >
+                    <Text style={[webDash.segmentText, selectedExamGrade === grade && webDash.segmentTextActive]}>{grade}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={webDash.segmentRow}>
+                {EXAM_TERM_OPTIONS.map((term) => (
+                  <TouchableOpacity
+                    key={term}
+                    style={[webDash.segmentButton, selectedExamTerm === term && webDash.segmentButtonActive]}
+                    onPress={() => setSelectedExamTerm(term)}
+                  >
+                    <Text style={[webDash.segmentText, selectedExamTerm === term && webDash.segmentTextActive]}>{term}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={webDash.filterLabel}>Select Exam</Text>
+              <TouchableOpacity
+                style={adm.paymentSelectBox}
+                onPress={() => setShowExamOptions((current) => !current)}
+              >
+                <Text style={webDash.selectText}>{formatExamOptionLabel(selectedExam)}</Text>
+                <Text style={adm.selectFieldArrow}>{showExamOptions ? '^' : 'v'}</Text>
+              </TouchableOpacity>
+              {showExamOptions ? (
+                <View style={adm.selectOptions}>
+                  {examOptions.length === 0 ? (
+                    <Text style={adm.selectEmptyText}>No exam is available for this grade and term yet.</Text>
+                  ) : examOptions.map((exam) => (
+                    <TouchableOpacity
+                      key={exam.id}
+                      style={[adm.selectOption, selectedExamId === exam.id && adm.selectOptionActive]}
+                      onPress={() => {
+                        setSelectedExamId(exam.id);
+                        setShowExamOptions(false);
+                      }}
+                    >
+                      <Text style={[adm.selectOptionText, selectedExamId === exam.id && adm.selectOptionTextActive]}>
+                        {formatExamOptionLabel(exam)}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+
+              {!selectedExam || !examGradebook ? (
+                <View style={webDash.emptyBox}>
+                  <Text style={webDash.emptyText}>Select an exam to view the gradebook.</Text>
+                </View>
+              ) : (
+                <>
+                  <Text style={[webDash.sectionText, { marginTop: 14 }]}>
+                    {`${selectedExam.grade} ${selectedExam.term} • Exam Date ${formatLongAppDate(selectedExam.examDate)}`}
+                  </Text>
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}>
+                    <View style={[webDash.table, adm.examTable]}>
+                      <View style={[webDash.tableRow, webDash.tableHeader]}>
+                        <View style={webDash.tableCellWide}><Text style={webDash.tableHeadText}>Student Name</Text></View>
+                        {adminExamSubjects.map((subject) => (
+                          <View key={subject} style={webDash.tableCell}><Text style={webDash.tableHeadText}>{subject}</Text></View>
+                        ))}
+                        <View style={webDash.tableCell}><Text style={webDash.tableHeadText}>Total</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableHeadText}>Average</Text></View>
+                        <View style={webDash.tableCell}><Text style={webDash.tableHeadText}>Rank</Text></View>
+                      </View>
+                      {adminExamRows.length === 0 ? (
+                        <View style={webDash.tableRow}>
+                          <View style={adm.examEmptyCell}>
+                            <Text style={adm.leaveEmptyText}>No student marks are available for this exam yet.</Text>
+                          </View>
+                        </View>
+                      ) : adminExamRows.map((row) => (
+                        <View key={row.studentId} style={webDash.tableRow}>
+                          <View style={webDash.tableCellWide}><Text style={webDash.tableText}>{row.studentName}</Text></View>
+                          {adminExamSubjects.map((subject) => (
+                            <View key={`${row.studentId}-${subject}`} style={webDash.tableCell}>
+                              <Text style={webDash.tableText}>{row.marks?.[subject] ?? '-'}</Text>
+                            </View>
+                          ))}
+                          <View style={webDash.tableCell}><Text style={webDash.tableText}>{row.total}</Text></View>
+                          <View style={webDash.tableCell}><Text style={webDash.tableText}>{row.average}</Text></View>
+                          <View style={webDash.tableCell}><Text style={webDash.tableText}>#{row.rank}</Text></View>
+                        </View>
+                      ))}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+            </View>
+          </>
+        )}
+
+        {!loading && tab === 'allSuggestions' && (
+          <>
+            <WebPageTitle
+              title="All Suggestions"
+              subtitle="Review every suggestion or complaint and update the reply and status from one admin screen."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.metricGrid}>
+              <WebMetricCard label="Total Suggestions" value={String(adminSuggestions.length)} badge="SG" accent="#2563eb" />
+              <WebMetricCard label="Open / Review" value={String(openAdminSuggestions.length)} badge="OP" accent="#f59e0b" />
+              <WebMetricCard label="Resolved / Closed" value={String(resolvedAdminSuggestions.length)} badge="RS" accent="#16a34a" />
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Suggestion Queue</Text>
+              <Text style={webDash.sectionText}>Pick any suggestion below to review the admin note, reply, and status.</Text>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                <View style={webDash.table}>
+                  <View style={[webDash.tableRow, webDash.tableHeader]}>
+                    {['Type', 'Title', 'From', 'Role', 'Status', 'Actions'].map((heading) => (
+                      <View key={heading} style={heading === 'Title' || heading === 'From' ? webDash.tableCellWide : webDash.tableCell}>
+                        <Text style={webDash.tableHeadText}>{heading}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {adminSuggestions.length === 0 ? (
+                    <View style={webDash.tableRow}>
+                      <View style={webDash.tableCellWide}>
+                        <Text style={webDash.tableText}>No suggestions or complaints have been submitted yet.</Text>
+                      </View>
+                    </View>
+                  ) : adminSuggestions.map((item) => (
+                    <View key={item._id} style={webDash.tableRow}>
+                      <View style={webDash.tableCell}>
+                        <StatusPill label={item.type} tone={item.type === 'Complaint' ? 'yellow' : 'blue'} />
+                      </View>
+                      <View style={webDash.tableCellWide}>
+                        <Text style={[webDash.tableText, { fontWeight: '900' }]}>{item.title}</Text>
+                        <Text style={webDash.tableText}>{formatAppDate(item.createdAt)}</Text>
+                      </View>
+                      <View style={webDash.tableCellWide}>
+                        <Text style={webDash.tableText}>{item.createdBy?.name || 'User'}</Text>
+                        <Text style={webDash.tableText}>{item.createdBy?.email || '-'}</Text>
+                      </View>
+                      <View style={webDash.tableCell}><Text style={webDash.tableText}>{item.createdBy?.role || '-'}</Text></View>
+                      <View style={webDash.tableCell}>
+                        <StatusPill label={item.status} tone={item.status === 'Resolved' ? 'green' : item.status === 'Closed' ? 'red' : 'blue'} />
+                      </View>
+                      <View style={webDash.tableCell}>
+                        <TouchableOpacity style={webDash.buttonSoft} onPress={() => beginSuggestionReview(item)}>
+                          <Text style={webDash.buttonTextBlue}>Review</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Selected Suggestion Review</Text>
+              {selectedSuggestion ? (
+                <>
+                  <View style={webDash.detailGrid}>
+                    <DetailField label="Submitted By" value={selectedSuggestion.createdBy?.name || '-'} />
+                    <DetailField label="Type" value={selectedSuggestion.type} />
+                    <DetailField label="Title" value={selectedSuggestion.title} />
+                    <DetailField label="Message" value={selectedSuggestion.message} />
+                  </View>
+                  <View style={[webDash.segmentRow, { marginTop: 18 }]}>
+                    {SUGGESTION_STATUS_OPTIONS.map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[webDash.segmentButton, suggestionReviewStatus === status && webDash.segmentButtonActive]}
+                        onPress={() => setSuggestionReviewStatus(status)}
+                      >
+                        <Text style={[webDash.segmentText, suggestionReviewStatus === status && webDash.segmentTextActive]}>{status}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  <Text style={webDash.filterLabel}>Reply</Text>
+                  <TextInput
+                    style={[webDash.formInput, webDash.textArea]}
+                    placeholder="Write your reply"
+                    value={suggestionReply}
+                    onChangeText={setSuggestionReply}
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                  />
+                  <Text style={[webDash.filterLabel, { marginTop: 14 }]}>Admin Note</Text>
+                  <TextInput
+                    style={[webDash.formInput, webDash.textArea]}
+                    placeholder="Internal admin note"
+                    value={suggestionAdminNote}
+                    onChangeText={setSuggestionAdminNote}
+                    placeholderTextColor="#94a3b8"
+                    multiline
+                  />
+                  <TouchableOpacity
+                    style={[webDash.buttonBlue, { marginTop: 18 }]}
+                    onPress={saveSuggestionReview}
+                    disabled={savingSuggestionReview}
+                  >
+                    <Text style={webDash.buttonTextLight}>{savingSuggestionReview ? 'Saving...' : 'Save Review'}</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <View style={webDash.emptyBox}>
+                  <Text style={webDash.emptyText}>Select a suggestion from the table above to review it here.</Text>
+                </View>
+              )}
+            </View>
+          </>
+        )}
+
+        {!loading && tab === 'mySuggestion' && (
+          <>
+            <WebPageTitle
+              title="My Suggestion"
+              subtitle="Create your own admin suggestion and keep track of the suggestions you already submitted."
+              actionLabel="Refresh"
+              onActionPress={loadAll}
+            />
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>Create Suggestion</Text>
+              <Text style={webDash.sectionText}>Send a new internal suggestion or improvement note from the admin account.</Text>
+              <Text style={[webDash.filterLabel, { marginTop: 14 }]}>Title</Text>
+              <TextInput
+                style={webDash.formInput}
+                placeholder="Enter suggestion title"
+                value={adminSuggestionTitle}
+                onChangeText={setAdminSuggestionTitle}
+                placeholderTextColor="#94a3b8"
+              />
+              <Text style={[webDash.filterLabel, { marginTop: 14 }]}>Message</Text>
+              <TextInput
+                style={[webDash.formInput, webDash.textArea]}
+                placeholder="Write your suggestion"
+                value={adminSuggestionMessage}
+                onChangeText={setAdminSuggestionMessage}
+                placeholderTextColor="#94a3b8"
+                multiline
+              />
+              <TouchableOpacity
+                style={[webDash.buttonBlue, { marginTop: 18 }]}
+                onPress={submitAdminSuggestion}
+                disabled={submittingAdminSuggestion}
+              >
+                <Text style={webDash.buttonTextLight}>{submittingAdminSuggestion ? 'Submitting...' : 'Submit Suggestion'}</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={webDash.sectionCard}>
+              <Text style={webDash.sectionTitle}>My Submitted Suggestions</Text>
+              <Text style={webDash.sectionText}>Review the status, reply, and submitted date for your own admin suggestions.</Text>
+
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
+                <View style={webDash.table}>
+                  <View style={[webDash.tableRow, webDash.tableHeader]}>
+                    {['Title', 'Status', 'Reply', 'Created'].map((heading) => (
+                      <View key={heading} style={heading === 'Title' || heading === 'Reply' ? webDash.tableCellWide : webDash.tableCell}>
+                        <Text style={webDash.tableHeadText}>{heading}</Text>
+                      </View>
+                    ))}
+                  </View>
+                  {adminMySuggestions.length === 0 ? (
+                    <View style={webDash.tableRow}>
+                      <View style={webDash.tableCellWide}>
+                        <Text style={webDash.tableText}>You have not submitted any admin suggestions yet.</Text>
+                      </View>
+                    </View>
+                  ) : adminMySuggestions.map((item) => (
+                    <View key={item._id} style={webDash.tableRow}>
+                      <View style={webDash.tableCellWide}>
+                        <Text style={[webDash.tableText, { fontWeight: '900' }]}>{item.title}</Text>
+                        <Text style={webDash.tableText}>{item.message}</Text>
+                      </View>
+                      <View style={webDash.tableCell}>
+                        <StatusPill label={item.status} tone={item.status === 'Resolved' ? 'green' : item.status === 'Closed' ? 'red' : 'blue'} />
+                      </View>
+                      <View style={webDash.tableCellWide}><Text style={webDash.tableText}>{item.reply || '-'}</Text></View>
+                      <View style={webDash.tableCell}><Text style={webDash.tableText}>{formatAppDate(item.createdAt)}</Text></View>
+                    </View>
+                  ))}
+                </View>
+              </ScrollView>
+            </View>
+          </>
         )}
 
         {!loading && tab === 'profile' && (
@@ -3398,6 +4625,194 @@ const adm = StyleSheet.create({
   ttEditBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   ttDeleteBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
   clearHallBtnText: { color: '#fff', fontWeight: '700', fontSize: 12 },
+  timetableHeroFilter: {
+    backgroundColor: '#edf4ff',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#d6e4ff',
+    padding: 16,
+  },
+  timetableFilterLabel: {
+    color: '#475569',
+    fontSize: 12,
+    fontWeight: '800',
+    marginBottom: 8,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+  },
+  timetableGradeSelector: {
+    maxWidth: 220,
+    borderWidth: 1,
+    borderColor: '#c6d6f8',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    paddingHorizontal: 14,
+    paddingVertical: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  timetableGradeSelectorText: { color: '#0f172a', fontSize: 14, fontWeight: '700' },
+  timetableOverviewGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 14, marginBottom: 14 },
+  timetableOverviewCard: {
+    flexBasis: 180,
+    flexGrow: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#fff',
+    padding: 16,
+  },
+  timetableOverviewLabel: {
+    color: '#64748b',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+  },
+  timetableOverviewValue: { color: '#0f172a', fontSize: 22, fontWeight: '900', marginTop: 10 },
+  adminTimetableBoard: {
+    minWidth: 1180,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#fff',
+  },
+  adminTimetableHeaderRow: {
+    flexDirection: 'row',
+    backgroundColor: '#f8fafc',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  adminTimetableTimeHeader: {
+    width: 128,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    justifyContent: 'center',
+  },
+  adminTimetableDayHeader: {
+    width: 150,
+    paddingHorizontal: 12,
+    paddingVertical: 14,
+    justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: '#eef2f7',
+  },
+  adminTimetableHeadText: {
+    color: '#475569',
+    fontSize: 11,
+    fontWeight: '900',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+  },
+  adminTimetableGridRow: {
+    flexDirection: 'row',
+    minHeight: 138,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef2f7',
+  },
+  adminTimetableTimeCell: {
+    width: 128,
+    paddingHorizontal: 14,
+    paddingVertical: 16,
+    justifyContent: 'flex-start',
+    backgroundColor: '#fff',
+  },
+  adminTimetableTimeText: { color: '#334155', fontSize: 14, fontWeight: '900', lineHeight: 20 },
+  adminTimetableSlotCell: {
+    width: 150,
+    margin: 10,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  adminTimetableSlotFilled: {
+    backgroundColor: '#eef6ff',
+    borderColor: '#dbeafe',
+  },
+  adminTimetableSlotEmpty: {
+    backgroundColor: '#fff1f2',
+    borderColor: '#fecdd3',
+  },
+  adminTimetableSlotTitle: {
+    color: '#123053',
+    fontSize: 14,
+    fontWeight: '900',
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  adminTimetableSlotMeta: {
+    color: '#46627f',
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  adminTimetableSlotHint: {
+    color: '#2563eb',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  adminTimetableSlotEmptyTitle: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  adminTimetableSlotEmptyHint: {
+    color: '#e11d48',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  adminTimetableGridNote: {
+    marginTop: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#f8fbff',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  adminTimetableGridNoteText: {
+    color: '#475569',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 19,
+  },
+  timetableEditorSummaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginTop: 16, marginBottom: 14 },
+  timetableEditorSummaryCard: {
+    flexBasis: 220,
+    flexGrow: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#f8fbff',
+    padding: 14,
+  },
+  timetableConflictBanner: {
+    marginTop: 4,
+    marginBottom: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  timetableConflictText: {
+    color: '#b91c1c',
+    fontSize: 13,
+    lineHeight: 19,
+    fontWeight: '700',
+  },
   input: {
     backgroundColor: '#f8fafc',
     borderWidth: 1,
@@ -5055,13 +6470,13 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
         request('/api/suggestions?mine=true', { token }),
         request('/api/attendance/student/me', { token }),
       ]);
-      setCourses(cData.courses || []);
-      setEnrollments(eData.enrollments || []);
-      setTimetable(tData.timetable || []);
-      setPayments(paymentData.payments || []);
-      setSuggestions(suggestionData.suggestions || []);
+      setCourses(Array.isArray(cData.courses) ? cData.courses : []);
+      setEnrollments(Array.isArray(eData.enrollments) ? eData.enrollments : []);
+      setTimetable(Array.isArray(tData.timetable) ? tData.timetable : []);
+      setPayments(Array.isArray(paymentData.payments) ? paymentData.payments : []);
+      setSuggestions(Array.isArray(suggestionData.suggestions) ? suggestionData.suggestions : []);
       setAttendanceData({
-        records: attendanceResponse.records || [],
+        records: Array.isArray(attendanceResponse.records) ? attendanceResponse.records : [],
         summary: attendanceResponse.summary || {
           totalClasses: 0,
           presentClasses: 0,
@@ -5080,14 +6495,20 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     loadData();
   }, []);
   useEffect(() => {
+    const needsLiveClock = tab === 'attendance' || tab === 'timetable';
+    if (!needsLiveClock) {
+      return undefined;
+    }
+
+    setLiveNow(new Date());
     const timer = setInterval(() => {
       setLiveNow(new Date());
     }, 1000);
 
     return () => clearInterval(timer);
-  }, []);
+  }, [tab]);
   useEffect(() => {
-    if (!token) return;
+    if (!token || tab !== 'results') return;
 
     const loadStudentExamResults = async () => {
       try {
@@ -5102,7 +6523,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     };
 
     loadStudentExamResults();
-  }, [token, selectedTerm]);
+  }, [token, selectedTerm, tab]);
 
   useEffect(() => {
     setProfileName(user.name || '');
@@ -5118,18 +6539,24 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   });
   const lastUpdated = formatLiveClockTime(liveNow);
   const todayDateKey = formatAppDate(liveNow);
+  const courseList = Array.isArray(courses) ? courses.filter(Boolean) : [];
+  const enrollmentList = Array.isArray(enrollments) ? enrollments.filter(Boolean) : [];
+  const timetableEntries = Array.isArray(timetable) ? timetable.filter(Boolean) : [];
+  const paymentList = Array.isArray(payments) ? payments.filter(Boolean) : [];
+  const suggestionList = Array.isArray(suggestions) ? suggestions.filter(Boolean) : [];
+  const attendanceRecords = Array.isArray(attendanceData?.records) ? attendanceData.records.filter(Boolean) : [];
   const assignedGrade =
     user.grade ||
-    enrollments.find((item) => item.course?.grade)?.course?.grade ||
+    enrollmentList.find((item) => item.course?.grade)?.course?.grade ||
     '';
   const currentGrade =
     assignedGrade ||
-    courses.find((course) => course.grade)?.grade ||
+    courseList.find((course) => course.grade)?.grade ||
     'Grade 7';
-  const filteredTimetable = (assignedGrade ? timetable.filter((entry) => {
+  const filteredTimetable = (assignedGrade ? timetableEntries.filter((entry) => {
     const entryGrade = String(entry?.courseId?.grade || entry?.grade || '').trim();
     return !currentGrade || !entryGrade || entryGrade === currentGrade;
-  }) : timetable);
+  }) : timetableEntries);
   const timetableStatus = filteredTimetable.length > 0 ? 'Auto-updating' : 'Waiting for entries';
   const timetableSubjects = [
     ...new Set(
@@ -5138,14 +6565,14 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
         .filter(Boolean)
     ),
   ];
-  const resultSubjects = studentExamResults?.subjects || [];
+  const resultSubjects = Array.isArray(studentExamResults?.subjects) ? studentExamResults.subjects.filter(Boolean) : [];
   const todayClasses = filteredTimetable
     .filter((entry) => entry.dayOfWeek === currentDayName)
     .sort((firstEntry, secondEntry) => compareTimes(firstEntry.startTime, secondEntry.startTime));
   const currentTimeMinutes = (liveNow.getHours() * 60) + liveNow.getMinutes();
   const nextClassToday = todayClasses.find((entry) => timeStringToMinutes(entry.endTime) >= currentTimeMinutes) || null;
   const currentMonthKey = buildPaymentMonthKey(liveNow);
-  const currentMonthPaymentAmount = calculateStudentMonthlyFee(currentGrade, enrollments);
+  const currentMonthPaymentAmount = calculateStudentMonthlyFee(currentGrade, enrollmentList);
   const currentMonthDraftPayment = currentMonthPaymentAmount > 0 ? {
     id: `draft-${currentMonthKey}`,
     monthKey: currentMonthKey,
@@ -5157,7 +6584,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     createdAt: null,
     isDraft: true,
   } : null;
-  const mergedPayments = [...payments];
+  const mergedPayments = [...paymentList];
   if (currentMonthDraftPayment && !mergedPayments.some((payment) => payment.monthKey === currentMonthKey)) {
     mergedPayments.unshift(currentMonthDraftPayment);
   }
@@ -5182,7 +6609,6 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     .reduce((sum, row) => sum + row.amount, 0);
   const uploadedReceiptCount = paymentRows.filter((row) => row.receipt?.dataUrl).length;
   const pendingPaymentsCount = paymentRows.filter((row) => row.status === 'Pending').length;
-  const attendanceRecords = attendanceData.records || [];
   const attendanceYear = liveNow.getFullYear();
   const attendanceMonthOptions = SALARY_MONTH_OPTIONS.map((option) => ({
     ...option,
@@ -5261,7 +6687,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     { label: 'Attendance %', value: `${attendanceStats.percentage}%`, detail: `${selectedMonthAttendanceRecords.length} tracked classes` },
   ];
   const metricCards = [
-    { label: 'Total Enrolled Classes', value: String(enrollments.length) },
+    { label: 'Total Enrolled Classes', value: String(enrollmentList.length) },
     { label: 'Attendance Percentage', value: `${attendanceStats.percentage}%` },
     { label: 'Pending Payments Count', value: String(pendingPaymentsCount) },
     { label: 'Upcoming Exams Count', value: '2' },
@@ -5303,7 +6729,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
           message: suggestionText.trim(),
         },
       });
-      setSuggestions((current) => [data.suggestion, ...current]);
+      setSuggestions((current) => [data.suggestion, ...(Array.isArray(current) ? current : [])]);
       setSuggestionText('');
       setTab('mySuggestion');
       Alert.alert('Submitted', 'Your message has been saved in My Suggestion.');
@@ -5439,7 +6865,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                 ) : (
                   todayClasses.map((entry) => (
                     <View key={entry._id} style={studentDash.classRow}>
-                      <Text style={studentDash.classTitle}>{formatTimetableEntryTitle(entry, courses)}</Text>
+                      <Text style={studentDash.classTitle}>{formatTimetableEntryTitle(entry, courseList)}</Text>
                       <Text style={studentDash.classMeta}>{entry.startTime} - {entry.endTime}</Text>
                     </View>
                   ))
@@ -5582,7 +7008,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                   <Text style={studentDash.attendanceOverviewLabel}>Next Timetable Class</Text>
                   <Text style={studentDash.attendanceNextClassTitle}>
                     {nextClassToday
-                      ? `${formatTimetableEntryTitle(nextClassToday, courses)}`
+                      ? `${formatTimetableEntryTitle(nextClassToday, courseList)}`
                       : 'No more classes scheduled for today'}
                   </Text>
                   <Text style={studentDash.attendanceNextClassMeta}>
@@ -5879,7 +7305,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                         >
                           {entry ? (
                             <>
-                              <Text style={studentDash.scheduleTitle} numberOfLines={2}>{formatTimetableEntryTitle(entry, courses)}</Text>
+                              <Text style={studentDash.scheduleTitle} numberOfLines={2}>{formatTimetableEntryTitle(entry, courseList)}</Text>
                               <Text style={studentDash.scheduleSub} numberOfLines={2}>
                                 {[entry.subject, entry.room].filter(Boolean).join(' â€¢ ')}
                               </Text>
@@ -5909,7 +7335,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
 
           <View style={studentDash.panel}>
             <Text style={studentDash.panelTitle}>My Suggestion</Text>
-            {suggestions.length === 0 ? (
+            {suggestionList.length === 0 ? (
               <View style={studentDash.placeholderCard}>
                 <Text style={studentDash.placeholderText}>You have not submitted any suggestions yet.</Text>
               </View>
@@ -5922,7 +7348,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                     <Text style={[studentDash.tableCell, studentDash.tableHead]}>Submitted On</Text>
                     <Text style={[studentDash.tableCellWide, studentDash.tableHead]}>Message</Text>
                   </View>
-                  {suggestions.map((item) => (
+                  {suggestionList.map((item) => (
                     <View key={item._id} style={studentDash.tableRow}>
                       <Text style={studentDash.tableCell}>{item.type}</Text>
                       <View style={studentDash.tableCell}>

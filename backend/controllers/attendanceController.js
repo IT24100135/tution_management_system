@@ -1,6 +1,7 @@
 const Attendance = require('../models/Attendance');
 const Timetable = require('../models/Timetable');
 const Enrollment = require('../models/Enrollment');
+const Course = require('../models/Course');
 const Student = require('../models/Student');
 const User = require('../models/User');
 
@@ -77,6 +78,13 @@ const buildStudentName = (studentProfile, studentUser) => {
   return profileName || studentUser?.name || '';
 };
 
+const mapStudentProfilesToRoster = (studentProfiles = []) => studentProfiles.map((studentProfile) => ({
+  studentProfileId: String(studentProfile._id),
+  studentUserId: studentProfile.userId ? String(studentProfile.userId) : '',
+  studentName: buildStudentName(studentProfile, null),
+  email: studentProfile.email || '',
+}));
+
 const getTutorEntriesForToday = async (user, dayOfWeek) => {
   const allEntries = await Timetable.find({ dayOfWeek })
     .populate('courseId', TIMETABLE_POPULATE)
@@ -108,7 +116,7 @@ const getRosterForTimetableEntry = async (entry) => {
       .populate('course', ENROLLMENT_COURSE_POPULATE)
       .sort({ createdAt: 1 });
 
-    return enrollments
+    const directRoster = enrollments
       .filter((enrollment) => enrollment.student)
       .map((enrollment) => ({
         studentProfileId: String(enrollment.student._id),
@@ -116,10 +124,23 @@ const getRosterForTimetableEntry = async (entry) => {
         studentName: buildStudentName(enrollment.student, null),
         email: enrollment.student.email || '',
       }));
+
+    if (directRoster.length > 0) {
+      return directRoster;
+    }
   }
 
-  const grade = String(entry?.grade || '').trim();
+  const grade = String(entry?.grade || entry?.courseId?.grade || '').trim();
   if (!grade) return [];
+
+  const gradeCourses = await Course.find({ grade }).select('_id');
+  const gradeCourseIds = gradeCourses.map((course) => course._id);
+  const enrolledStudentIds = gradeCourseIds.length > 0
+    ? await Enrollment.find({
+      course: { $in: gradeCourseIds },
+      status: 'enrolled',
+    }).distinct('student')
+    : [];
 
   const studentUsers = await User.find({
     role: 'student',
@@ -127,32 +148,23 @@ const getRosterForTimetableEntry = async (entry) => {
     approvalStatus: 'approved',
   }).select('_id name email grade');
 
+  const studentUserIds = studentUsers.map((studentUser) => studentUser._id);
+  const studentEmails = studentUsers
+    .map((studentUser) => String(studentUser.email || '').toLowerCase())
+    .filter(Boolean);
+
   const studentProfiles = await Student.find({
+    status: 'active',
     $or: [
-      { userId: { $in: studentUsers.map((studentUser) => studentUser._id) } },
-      { email: { $in: studentUsers.map((studentUser) => studentUser.email) } },
+      { _id: { $in: enrolledStudentIds } },
+      { userId: { $in: studentUserIds } },
+      { email: { $in: studentEmails } },
     ],
-  }).select('_id userId firstName lastName email');
+  })
+    .select('_id userId firstName lastName email')
+    .sort({ firstName: 1, lastName: 1, createdAt: 1 });
 
-  const profileByUserId = new Map(
-    studentProfiles
-      .filter((profile) => profile.userId)
-      .map((profile) => [String(profile.userId), profile])
-  );
-  const profileByEmail = new Map(studentProfiles.map((profile) => [String(profile.email || '').toLowerCase(), profile]));
-
-  return studentUsers.map((studentUser) => {
-    const matchedProfile = profileByUserId.get(String(studentUser._id))
-      || profileByEmail.get(String(studentUser.email || '').toLowerCase())
-      || null;
-
-    return {
-      studentProfileId: matchedProfile ? String(matchedProfile._id) : '',
-      studentUserId: String(studentUser._id),
-      studentName: buildStudentName(matchedProfile, studentUser),
-      email: studentUser.email || '',
-    };
-  }).filter((student) => student.studentProfileId);
+  return mapStudentProfilesToRoster(studentProfiles);
 };
 
 const buildSessionCard = async ({ entry, attendanceDate, currentTimeValue }) => {
