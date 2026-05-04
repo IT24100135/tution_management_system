@@ -1,0 +1,131 @@
+{
+   "checksum": "992b29d8aef836cc96c33e43961121dd",
+   "roots": {
+      "bookmark_bar": {
+         "children": [ {
+            "date_added": "13298798002155118",
+            "date_last_used": "0",
+            "guid": "38c4a91d-792d-4545-8a84-a469f1cc1180",
+            "id": "12",
+            "name": "Gmail",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://accounts.google.com/b/0/AddMailService",
+            "visit_count": 0
+         }, {
+            "date_added": "13298798002188118",
+            "date_last_used": "13422035743097105",
+            "guid": "78296d60-478f-4953-8b3f-1c0af226265a",
+            "id": "13",
+            "name": "YouTube",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://youtube.com/",
+            "visit_count": 67
+         }, {
+            "date_added": "13298798002189118",
+            "date_last_used": "0",
+            "guid": "5401d759-56c1-4793-ba77-5713a935109f",
+            "id": "14",
+            "name": "Maps",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://maps.google.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13385906662720624",
+            "date_last_used": "0",
+            "guid": "2eb39f4d-e505-40e9-9853-3e3139d12982",
+            "id": "15",
+            "meta_info": {
+               "power_bookmark_meta": ""
+            },
+            "name": "Untitled form - Google Forms",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://docs.google.com/forms/d/1qT7zHLcGXDYzrzHBVMXf1b_WVcKOKQQZ8njoiwnK2sE/edit",
+            "visit_count": 1
+         }, {
+            "date_added": "13422345642287836",
+            "date_last_used": "0",
+            "guid": "c1da5a9e-0d83-4092-8ffd-2bf673da10f9",
+            "id": "9",
+            "name": "Amazon.com - Online Shopping",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "http://www.amazon.com/gp/ubp/oneButton/config/redirectHome?tagbase=hpbk-ubpl&ref=aagateway-edgebook-hp",
+            "visit_count": 0
+         }, {
+            "date_added": "13422345642287010",
+            "date_last_used": "0",
+            "guid": "a21d628d-96ac-4e4f-b93a-357aae2dcd1e",
+            "id": "8",
+            "name": "Booking.com",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://js.redirect.hp.com/jumpstation?bd=booking&c=232&locale=*&pf=*&tp=edge&TYPE=3",
+            "visit_count": 0
+         }, {
+            "date_added": "13422345642286035",
+            "date_last_used": "0",
+            "guid": "8a160a5c-33e7-4ed7-a976-ddb966ffbae4",
+            "id": "7",
+            "name": "McAfee Security",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.mcafee.com/consumer/v/browserfav/hp.html",
+            "visit_count": 0
+         } ],
+         "date_added": "13422345642081983",
+         "date_last_used": "0",
+         "date_modified": "13422345642287836",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Favorites bar",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "other": {
+         "children": [  ],
+         "date_added": "13422345642081983",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [  ],
+         "date_added": "13422345642081983",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "workspaces_v2": {
+         "children": [  ],
+         "date_added": "13422345642081983",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "75aa6670-344f-549d-b742-660f029506ab",
+         "id": "5",
+         "name": "Workspaces",
+         "source": "unknown",
+         "type": "folder"
+      }
+   },
+   "sync_metadata": "CjEKDgiIgQISCLnI9d6dAQAAEgAqGEpoTlhtY1hkU2FzRG51SVJSMGNFUHc9PUgDoAYHEo4BCAISiQEKHFljU1RvbnZFU1B3cUNzNEwyY3JWaHY2OEw5OD0SJDA1MzMwNDE1LWJmMWYtNWY1NS1hYTNhLWE5OTEyNDc5NjkxNBgAIAAoADDz6cC/nDA4m+zAv5wwQJvswL+cMEocb1BWa2h3QlJiVjY1S0NXUjIrSU9OSFdvT3U4PVoAZQAAAADCPgJgABKtAQgPEqgBChwrcVBBODZXdWFWdjY2d0xLSjYzVFZRZ3NWTVU9EiQyZWIzOWY0ZC1lNTA1LTQwZTktOTg1My0zZTMxMzlkMTI5ODIYACAAKAAw05//q9cyOPyh/6vXMkD8of+r1zJKHEd3blRxdVR4Y1psTjJyeDZwb2hPM2JPQlZKVT1aHyId6XVmYTVRVENqZGlFcHFZdHNDNDU3MXpqVTYrbz1lo60cX8I+AmAFEq0BCA4SqAEKHEZlelR5eXBFWFF3Sld2RG9IekxKd1NCTU83dz0SJGFkOWQyMDVhLTBlMDktNGQ2ZC05OWJhLWU5N2YwMDcxY2QxMRgAIAAoADCetYrk8zE4+sHBv5wwQPrBwb+cMEocVXlqWThNYjE1OFdqNGJiNDQxTjB4eWFwRjZJPVofIh3TcEpNL1JDT1lEQnFGcEovbW5ZQzEzQjkxZ3B3PWWk++iYwj4CYAUSjgEIAxKJAQocbmpnRHU4OGVDcnZYcDg2cEQ3ZkhHY3FGcDg4PRIkZDdkYjYzNjEtOWFhZC01MzFiLWExZWUtNDFmOGYzYWM0N2Y0GAAgACgAMPPpwL+cMDiJ7cC/nDBAie3Av5wwShx5ek5CMDFjbjU0QTdjUlUwdVQrL1BnbVR0VW89WgBlAAAAAMI+AmAAEq0BCA0SqAEKHHhlTGhPTGViQTBzN3h3M0taWXBuanBJbDEraz0SJDhkZGYzZTNmLWMwNTItNDgyNC1iYzdmLWU5YWUwYmY5Y2JhORgAIAAoADC4kdf33TM42MLBv5wwQNjCwb+cMEocbDUzMXZBd0xWZnZwMXBUWWZCZFhzdFJ5aTd3PVofIh2nTjRoYzdBZThBY2R5SFN5TDJ6UWkwbWF1M0dJPWVQQsPSwj4CYAUSrAEIDBKnAQocOVB6S3gxbFFSTS96TEZQWEFjTlBtd2Vzdm53PRIkMzJmOTc2YzMtZDUxNS00N2VjLThmYWYtNWMxOGUxMDk3NGNiGAAgACgAMJy1iuTzMTj3wsG/nDBA98LBv5wwShwzcW9FVnJpNGs4eVA0OXdGSktJRXRPQnQreVE9Wh4iHE9QcWczTFpJMFFTMGpCTTc2TU5Od2ZSa1ZFZz1le6dAccI+AmAFEo4BCAESiQEKHHl4Si82ZnZrZWNyN2twNUVRekI0dFdMcGRiRT0SJDA1NmYwODdhLTZkNWUtNTA2Yy05Mjk1LTE1ZGUwOGVlMzM0MRgAIAAoADDz6cC/nDA4/OvAv5wwQPzrwL+cMEocYVJDV0xnaEY5YjVJbnFLSUR2dUovanZRa0ZjPVoAZQAAAADCPgJgABKOAQgFEokBChx3UkJyWkwrNlBBOWF2S2dqTlA3SlhETGNmdnM9EiRhNWIxMGNhZS03YWFjLTU1ZDAtOTUxNy0wOWMxNmZjOTU2NzkYACAAKAAw49/h16QzOJjg4dekM0CY4OHXpDNKHG5teDY1c1FEdnhJOFRnRWV2K0ErbnR0b1NuND1aAGUAAAAAwj4CYAAwADgA",
+   "version": 1
+}

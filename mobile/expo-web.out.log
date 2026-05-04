@@ -1,0 +1,11 @@
+Starting project at D:\wmt_project\mobile
+Starting Metro Bundler
+warning: Bundler cache is empty, rebuilding (this may take a minute)
+Waiting on http://localhost:19006
+Logs for your project will appear below.
+Web node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓▓░░░░ 79.0% (48/54)
+Web node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 96.8% (123/125)
+Web node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 98.4% (124/125)
+Web node_modules\expo\AppEntry.js ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓░ 99.9% (225/225)
+Web Bundled 10652ms node_modules\expo\AppEntry.js (225 modules)
+ LOG  [web] Logs will appear in the browser console

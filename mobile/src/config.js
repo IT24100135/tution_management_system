@@ -5,15 +5,33 @@ const DEFAULT_PORT = '5000';
 
 const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
 
-const getHostFromExpo = () => {
-  const hostUri =
-    Constants.expoConfig?.hostUri ||
-    Constants.manifest2?.extra?.expoGo?.debuggerHost ||
-    Constants.manifest?.debuggerHost ||
-    '';
+const extractHost = (value = '') => {
+  const normalizedValue = String(value || '').trim();
+  if (!normalizedValue) return '';
 
-  if (!hostUri) return '';
-  return hostUri.split(':')[0];
+  const withoutScheme = normalizedValue.replace(/^[a-z]+:\/\//i, '');
+  const withoutPath = withoutScheme.split('/')[0];
+  const withoutQuery = withoutPath.split('?')[0];
+  const host = withoutQuery.split(':')[0].trim();
+
+  return host;
+};
+
+const getHostFromExpo = () => {
+  const hostCandidates = [
+    Constants.expoConfig?.hostUri,
+    Constants.expoGoConfig?.debuggerHost,
+    Constants.linkingUri,
+    Constants.experienceUrl,
+    Constants.platform?.hostUri,
+    Constants.manifest2?.extra?.expoGo?.debuggerHost,
+    Constants.manifest?.debuggerHost,
+  ];
+
+  return hostCandidates
+    .map(extractHost)
+    .find((host) => host && host !== 'localhost' && host !== '127.0.0.1')
+    || '';
 };
 
 const buildBaseUrlFromHost = (host) => `http://${host}:${DEFAULT_PORT}`;

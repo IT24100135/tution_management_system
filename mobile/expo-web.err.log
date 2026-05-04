@@ -1,0 +1,22 @@
+  --non-interactive is not supported, use $CI=1 instead
+D:\wmt_project\mobile\node_modules\expo\node_modules\@expo\cli\build\src\utils\errors.js:130
+    throw error;
+    ^
+
+Error: ENOENT: no such file or directory, watch 'D:\wmt_project\mobile\edge-profile\EdgeOnnxRuntimeDirectML'
+    at FSWatcher.<computed> (node:internal/fs/watchers:316:19)
+    at Object.watch (node:fs:2537:36)
+    at FallbackWatcher._watchdir (D:\wmt_project\mobile\node_modules\@expo\metro\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:119:33)
+    at D:\wmt_project\mobile\node_modules\@expo\metro\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:219:22
+    at Walker.<anonymous> (D:\wmt_project\mobile\node_modules\@expo\metro\node_modules\metro-file-map\src\watchers\FallbackWatcher.js:358:5)
+    at Walker.emit (node:events:508:28)
+    at D:\wmt_project\mobile\node_modules\walker\lib\walker.js:69:16
+    at FSReqCallback.oncomplete (node:fs:185:23) {
+  errno: -4058,
+  syscall: 'watch',
+  code: 'ENOENT',
+  path: 'D:\\wmt_project\\mobile\\edge-profile\\EdgeOnnxRuntimeDirectML',
+  filename: 'D:\\wmt_project\\mobile\\edge-profile\\EdgeOnnxRuntimeDirectML'
+}
+
+Node.js v24.14.0

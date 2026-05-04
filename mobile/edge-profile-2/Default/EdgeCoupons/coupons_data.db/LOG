@@ -1,0 +1,5 @@
+2026/05/04-10:53:11.147 4824 Creating DB d:\wmt_project\mobile\edge-profile-2\Default\EdgeCoupons/coupons_data.db since it was missing.
+2026/05/04-10:53:11.222 4824 Reusing MANIFEST d:\wmt_project\mobile\edge-profile-2\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/05/04-10:53:12.505 55f8 Level-0 table #5: started
+2026/05/04-10:53:12.512 55f8 Level-0 table #5: 682129 bytes OK
+2026/05/04-10:53:12.518 55f8 Delete type=0 #3

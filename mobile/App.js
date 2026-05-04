@@ -104,23 +104,38 @@ const TIMETABLE_TIME_SLOTS = [
 const EXAM_TERM_OPTIONS = ['Term 1', 'Term 2', 'Term 3'];
 const SUGGESTION_STATUS_OPTIONS = ['Open', 'In Review', 'Resolved', 'Closed'];
 const LEAVE_REQUEST_STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
+const REQUEST_TIMEOUT_MS = 12000;
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // API Helper
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const request = async (path, { method = 'GET', token, body } = {}) => {
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  });
-  const rawText = await response.text();
-  const data = rawText ? JSON.parse(rawText) : {};
-  if (!response.ok) throw new Error(data.message || 'Request failed');
-  return data;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${API_BASE_URL}${path}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
+    });
+    const rawText = await response.text();
+    const data = rawText ? JSON.parse(rawText) : {};
+    if (!response.ok) throw new Error(data.message || 'Request failed');
+    return data;
+  } catch (error) {
+    if (error?.name === 'AbortError') {
+      throw new Error(`Request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)} seconds`);
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
 };
 
 const splitFullName = (fullName) => {
@@ -648,8 +663,10 @@ const AuthScreen = ({ onAuthenticated }) => {
   const testBackendConnection = async () => {
     if (checkingConnection) return;
     setCheckingConnection(true);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
-      const response = await fetch(`${API_BASE_URL}/`);
+      const response = await fetch(`${API_BASE_URL}/`, { signal: controller.signal });
       const message = await response.text();
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}`);
@@ -659,11 +676,15 @@ const AuthScreen = ({ onAuthenticated }) => {
         `Backend is reachable.\n\nURL: ${API_BASE_URL}\nResponse: ${message || 'No message'}`,
       );
     } catch (error) {
+      const reason = error?.name === 'AbortError'
+        ? `Request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)} seconds`
+        : error.message;
       Alert.alert(
         'Connection Failed',
-        `Could not reach backend.\n\nURL: ${API_BASE_URL}\nReason: ${error.message}`,
+        `Could not reach backend.\n\nURL: ${API_BASE_URL}\nReason: ${reason}`,
       );
     } finally {
+      clearTimeout(timeout);
       setCheckingConnection(false);
     }
   };
@@ -3341,30 +3362,31 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                         <Text style={adm.adminTimetableTimeText}>{row.slot}</Text>
                       </View>
                       {row.cells.map(({ day, entry }) => (
-                        <TouchableOpacity
-                          key={`${row.key}-${day}`}
-                          style={[
-                            adm.adminTimetableSlotCell,
-                            entry ? adm.adminTimetableSlotFilled : adm.adminTimetableSlotEmpty,
-                          ]}
-                          onPress={() => openTimetableSlotEditor(day, row, entry)}
-                        >
-                          {entry ? (
-                            <>
-                              <Text style={adm.adminTimetableSlotTitle} numberOfLines={2}>
-                                {entry.subject || getTimetableEntryTitle(entry)}
-                              </Text>
-                              <Text style={adm.adminTimetableSlotMeta} numberOfLines={1}>{entry.tutorName || 'Tutor not set'}</Text>
-                              <Text style={adm.adminTimetableSlotMeta} numberOfLines={1}>{entry.room || 'Hall not set'}</Text>
-                              <Text style={adm.adminTimetableSlotHint}>Tap to edit</Text>
-                            </>
-                          ) : (
-                            <>
-                              <Text style={adm.adminTimetableSlotEmptyTitle}>Not assigned</Text>
-                              <Text style={adm.adminTimetableSlotEmptyHint}>Tap to assign</Text>
-                            </>
-                          )}
-                        </TouchableOpacity>
+                        <View key={`${row.key}-${day}`} style={adm.adminTimetableDayCell}>
+                          <TouchableOpacity
+                            style={[
+                              adm.adminTimetableSlotCard,
+                              entry ? adm.adminTimetableSlotFilled : adm.adminTimetableSlotEmpty,
+                            ]}
+                            onPress={() => openTimetableSlotEditor(day, row, entry)}
+                          >
+                            {entry ? (
+                              <>
+                                <Text style={adm.adminTimetableSlotTitle} numberOfLines={2}>
+                                  {entry.subject || getTimetableEntryTitle(entry)}
+                                </Text>
+                                <Text style={adm.adminTimetableSlotMeta} numberOfLines={1}>{entry.tutorName || 'Tutor not set'}</Text>
+                                <Text style={adm.adminTimetableSlotMeta} numberOfLines={1}>{entry.room || 'Hall not set'}</Text>
+                                <Text style={adm.adminTimetableSlotHint}>Tap to edit</Text>
+                              </>
+                            ) : (
+                              <>
+                                <Text style={adm.adminTimetableSlotEmptyTitle}>Not assigned</Text>
+                                <Text style={adm.adminTimetableSlotEmptyHint}>Tap to assign</Text>
+                              </>
+                            )}
+                          </TouchableOpacity>
+                        </View>
                       ))}
                     </View>
                   ))}
@@ -4720,9 +4742,16 @@ const adm = StyleSheet.create({
     backgroundColor: '#fff',
   },
   adminTimetableTimeText: { color: '#334155', fontSize: 14, fontWeight: '900', lineHeight: 20 },
-  adminTimetableSlotCell: {
+  adminTimetableDayCell: {
     width: 150,
-    margin: 10,
+    borderLeftWidth: 1,
+    borderLeftColor: '#eef2f7',
+    padding: 10,
+    backgroundColor: '#fff',
+  },
+  adminTimetableSlotCard: {
+    flex: 1,
+    minHeight: 118,
     borderRadius: 16,
     borderWidth: 1,
     paddingHorizontal: 12,
