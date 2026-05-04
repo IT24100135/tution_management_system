@@ -1,8 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MaterialIcons } from '@expo/vector-icons';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  Image,
+  ImageBackground,
   KeyboardAvoidingView,
   Platform,
   SafeAreaView,
@@ -90,21 +94,23 @@ const SALARY_MONTH_OPTIONS = [
   { value: '12', label: 'December' },
 ];
 const TIMETABLE_TIME_SLOTS = [
-  { start: '07:30', end: '08:30' },
-  { start: '08:30', end: '09:30' },
-  { start: '09:30', end: '10:30' },
-  { start: '10:30', end: '11:30' },
-  { start: '11:30', end: '12:30' },
-  { start: '13:30', end: '14:30' },
-  { start: '14:30', end: '15:30' },
-  { start: '15:30', end: '16:30' },
-  { start: '16:30', end: '17:30' },
-  { start: '17:30', end: '18:30' },
+  { start: '07:00', end: '08:00' },
+  { start: '08:00', end: '09:00' },
+  { start: '09:00', end: '10:00' },
+  { start: '10:00', end: '11:00' },
+  { start: '14:00', end: '15:00' },
+  { start: '15:00', end: '16:00' },
+  { start: '16:00', end: '17:00' },
+  { start: '17:00', end: '18:00' },
 ];
 const EXAM_TERM_OPTIONS = ['Term 1', 'Term 2', 'Term 3'];
 const SUGGESTION_STATUS_OPTIONS = ['Open', 'In Review', 'Resolved', 'Closed'];
 const LEAVE_REQUEST_STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 const REQUEST_TIMEOUT_MS = 12000;
+const ADMIN_TIMETABLE_LIMITED_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
+const ADMIN_TIMETABLE_FULL_ACCESS_DAYS = ['Saturday', 'Sunday'];
+const ADMIN_TIMETABLE_ACCESS_START = '15:00';
+const ADMIN_TIMETABLE_ACCESS_END = '18:00';
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // API Helper
@@ -315,6 +321,29 @@ const timeStringToMinutes = (timeValue) => {
     return -1;
   }
   return (hour * 60) + minute;
+};
+
+const compareTimes = (firstTime, secondTime) => (
+  timeStringToMinutes(firstTime) - timeStringToMinutes(secondTime)
+);
+
+const isAdminTimetableSlotAccessible = (day, startTime, endTime) => {
+  if (ADMIN_TIMETABLE_FULL_ACCESS_DAYS.includes(day)) {
+    return true;
+  }
+
+  if (day === 'Friday') {
+    return false;
+  }
+
+  if (ADMIN_TIMETABLE_LIMITED_DAYS.includes(day)) {
+    return (
+      timeStringToMinutes(startTime) >= timeStringToMinutes(ADMIN_TIMETABLE_ACCESS_START)
+      && timeStringToMinutes(endTime) <= timeStringToMinutes(ADMIN_TIMETABLE_ACCESS_END)
+    );
+  }
+
+  return false;
 };
 
 const formatLiveClockTime = (dateValue = new Date()) => (
@@ -606,7 +635,6 @@ const AuthScreen = ({ onAuthenticated }) => {
   const [grade, setGrade] = useState('');
   const [requestedRole, setRequestedRole] = useState('student');
   const [loading, setLoading] = useState(false);
-  const [checkingConnection, setCheckingConnection] = useState(false);
   const [showSubjectOptions, setShowSubjectOptions] = useState(false);
   const [showGradeOptions, setShowGradeOptions] = useState(false);
   const isRegister = mode === 'register';
@@ -660,45 +688,28 @@ const AuthScreen = ({ onAuthenticated }) => {
     }
   };
 
-  const testBackendConnection = async () => {
-    if (checkingConnection) return;
-    setCheckingConnection(true);
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-    try {
-      const response = await fetch(`${API_BASE_URL}/`, { signal: controller.signal });
-      const message = await response.text();
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      Alert.alert(
-        'Connection OK',
-        `Backend is reachable.\n\nURL: ${API_BASE_URL}\nResponse: ${message || 'No message'}`,
-      );
-    } catch (error) {
-      const reason = error?.name === 'AbortError'
-        ? `Request timed out after ${Math.round(REQUEST_TIMEOUT_MS / 1000)} seconds`
-        : error.message;
-      Alert.alert(
-        'Connection Failed',
-        `Could not reach backend.\n\nURL: ${API_BASE_URL}\nReason: ${reason}`,
-      );
-    } finally {
-      clearTimeout(timeout);
-      setCheckingConnection(false);
-    }
-  };
-
   return (
     <SafeAreaView style={auth.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
+      <ImageBackground
+        source={require('./assets/loginpageimg.png')}
+        style={auth.background}
+        imageStyle={auth.backgroundImage}
+        resizeMode="cover"
       >
-        <ScrollView contentContainerStyle={auth.scroll} keyboardShouldPersistTaps="handled">
+        <View style={auth.backgroundOverlay}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <ScrollView contentContainerStyle={auth.scroll} keyboardShouldPersistTaps="handled">
           {/* Logo area */}
           <View style={auth.logoArea}>
             <View style={auth.logoCircle}>
+              <Image
+                source={require('./assets/logo.jpeg')}
+                style={auth.logoImage}
+                resizeMode="cover"
+              />
               <Text style={auth.logoIcon}>ðŸŽ“</Text>
             </View>
             <Text style={auth.appName}>TuitionApp</Text>
@@ -892,29 +903,30 @@ const AuthScreen = ({ onAuthenticated }) => {
                 <Text style={auth.btnText}>{isRegister ? 'Submit Request' : 'Sign In'}</Text>
               )}
             </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[auth.testBtn, checkingConnection && auth.testBtnDisabled]}
-              onPress={testBackendConnection}
-              disabled={checkingConnection}
-            >
-              <Text style={auth.testBtnText}>
-                {checkingConnection ? 'Testing Connection...' : 'Test Backend Connection'}
-              </Text>
-            </TouchableOpacity>
           </View>
 
-          <Text style={auth.version}>API: {API_BASE_URL}</Text>
-        </ScrollView>
-      </KeyboardAvoidingView>
+              <Text style={auth.version}>API: {API_BASE_URL}</Text>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </View>
+      </ImageBackground>
     </SafeAreaView>
   );
 };
 
 const auth = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0f172a' },
+  background: { flex: 1 },
+  backgroundImage: { opacity: 0.95 },
+  backgroundOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.58)' },
   scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  logoArea: { alignItems: 'center', marginBottom: 32 },
+  logoArea: {
+    position: 'absolute',
+    top: 48,
+    left: 24,
+    right: 24,
+    alignItems: 'center',
+  },
   logoCircle: {
     width: 80,
     height: 80,
@@ -929,8 +941,16 @@ const auth = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  logoIcon: { fontSize: 36 },
-  appName: { fontSize: 30, fontWeight: '800', color: '#fff', letterSpacing: 0.5 },
+  logoImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 40,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+  },
+  logoIcon: { fontSize: 36, opacity: 0 },
+  appName: { fontSize: 30, fontWeight: '800', color: '#f8fafc', letterSpacing: 0.5 },
   tagline: { fontSize: 14, color: '#64748b', marginTop: 4 },
   card: {
     backgroundColor: '#1e293b',
@@ -1024,19 +1044,6 @@ const auth = StyleSheet.create({
     elevation: 6,
   },
   btnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
-  testBtn: {
-    borderColor: '#0ea5e9',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 10,
-    backgroundColor: '#0f172a',
-  },
-  testBtnDisabled: {
-    opacity: 0.7,
-  },
-  testBtnText: { color: '#38bdf8', fontWeight: '700', fontSize: 14 },
   version: { color: '#334155', fontSize: 11, textAlign: 'center', marginTop: 20 },
 });
 
@@ -1062,6 +1069,242 @@ const SectionHeader = ({ title, action, actionLabel }) => (
   </View>
 );
 
+const AnimatedTouchableOpacity = Animated.createAnimatedComponent(TouchableOpacity);
+
+const getDrawerSections = (menuItems = []) => {
+  const groupedSections = [];
+  const sectionMap = new Map();
+
+  menuItems.forEach((item) => {
+    const sectionTitle = item.section || 'Menu';
+    if (!sectionMap.has(sectionTitle)) {
+      const nextSection = { title: sectionTitle, items: [] };
+      sectionMap.set(sectionTitle, nextSection);
+      groupedSections.push(nextSection);
+    }
+    sectionMap.get(sectionTitle).items.push(item);
+  });
+
+  return groupedSections;
+};
+
+const getActiveMenuTitle = (menuItems = [], activeTab, fallbackTitle = 'Dashboard') => {
+  const matchedItem = menuItems.find((item) => item.key === activeTab);
+  if (matchedItem?.label) {
+    return matchedItem.label;
+  }
+  if (activeTab === 'profile') {
+    return 'Profile';
+  }
+  return fallbackTitle;
+};
+
+const DashboardDrawer = ({
+  visible,
+  onClose,
+  menuItems,
+  activeTab,
+  onSelect,
+  userName,
+  theme,
+  footerActionLabel,
+  onFooterAction,
+}) => {
+  const { width } = useWindowDimensions();
+  const [mounted, setMounted] = useState(visible);
+  const progress = useRef(new Animated.Value(visible ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      setMounted(true);
+    }
+
+    Animated.timing(progress, {
+      toValue: visible ? 1 : 0,
+      duration: visible ? 240 : 200,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (finished && !visible) {
+        setMounted(false);
+      }
+    });
+  }, [progress, visible]);
+
+  if (!mounted) {
+    return null;
+  }
+
+  const drawerWidth = Math.min(Math.max(width * 0.8, 280), 360);
+  const drawerTranslateX = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-drawerWidth, 0],
+  });
+  const overlayOpacity = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+  const sections = getDrawerSections(menuItems);
+
+  return (
+    <View style={drawer.overlayWrap} pointerEvents="box-none">
+      <AnimatedTouchableOpacity
+        activeOpacity={1}
+        onPress={onClose}
+        style={[
+          drawer.overlay,
+          {
+            opacity: overlayOpacity,
+            backgroundColor: theme.overlayColor,
+          },
+        ]}
+      />
+
+      <Animated.View
+        style={[
+          drawer.panel,
+          {
+            width: drawerWidth,
+            backgroundColor: theme.panelColor,
+            borderColor: theme.borderColor,
+            transform: [{ translateX: drawerTranslateX }],
+          },
+        ]}
+      >
+        <View style={[drawer.header, { borderBottomColor: theme.borderColor }]}>
+          <View style={drawer.headerUserBlock}>
+            <Text style={[drawer.headerUserLabel, { color: theme.eyebrowColor }]}>Signed In</Text>
+            <Text style={[drawer.headerUserName, { color: theme.titleColor }]}>
+              {userName || 'User'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[drawer.closeButton, { backgroundColor: theme.closeButtonColor }]}
+            onPress={onClose}
+          >
+            <Text style={[drawer.closeButtonText, { color: theme.closeButtonTextColor }]}>X</Text>
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={drawer.scrollContent}
+        >
+          {sections.map((section) => (
+            <View key={section.title} style={drawer.sectionBlock}>
+              <Text style={[drawer.sectionTitle, { color: theme.sectionTitleColor }]}>{section.title}</Text>
+              <View style={drawer.sectionItems}>
+                {section.items.map((item) => {
+                  const isActive = activeTab === item.key;
+                  return (
+                    <TouchableOpacity
+                      key={item.key || item.label}
+                      style={[
+                        drawer.itemButton,
+                        {
+                          backgroundColor: theme.itemColor,
+                          borderColor: theme.borderColor,
+                        },
+                        isActive && {
+                          backgroundColor: theme.activeItemColor,
+                          borderColor: theme.activeItemColor,
+                        },
+                        item.disabled && drawer.itemButtonDisabled,
+                      ]}
+                      onPress={() => {
+                        if (item.disabled || !item.key) {
+                          return;
+                        }
+                        onSelect(item.key);
+                        onClose();
+                      }}
+                      disabled={item.disabled}
+                    >
+                      <View
+                        style={[
+                          drawer.itemIcon,
+                          {
+                            backgroundColor: theme.iconBackgroundColor,
+                            borderColor: theme.iconBorderColor,
+                          },
+                          isActive && {
+                            backgroundColor: theme.activeIconBackgroundColor,
+                            borderColor: theme.activeIconBorderColor,
+                          },
+                        ]}
+                      >
+                        <MaterialIcons
+                          name={item.icon || 'apps'}
+                          size={20}
+                          style={[
+                            drawer.itemIconText,
+                            { color: theme.iconTextColor },
+                            isActive && { color: theme.activeIconTextColor },
+                          ]}
+                        />
+                      </View>
+
+                      <View style={drawer.itemCopy}>
+                        <Text
+                          style={[
+                            drawer.itemText,
+                            { color: theme.itemTextColor },
+                            isActive && { color: theme.activeItemTextColor },
+                            item.disabled && { color: theme.disabledTextColor },
+                          ]}
+                        >
+                          {item.label}
+                        </Text>
+                      </View>
+
+                      {item.badge ? (
+                        <View
+                          style={[
+                            drawer.itemBadge,
+                            { backgroundColor: theme.badgeColor },
+                            isActive && { backgroundColor: theme.activeBadgeColor },
+                            item.disabled && { backgroundColor: theme.disabledBadgeColor },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              drawer.itemBadgeText,
+                              { color: theme.badgeTextColor },
+                              isActive && { color: theme.activeBadgeTextColor },
+                              item.disabled && { color: theme.disabledTextColor },
+                            ]}
+                          >
+                            {item.badge}
+                          </Text>
+                        </View>
+                      ) : null}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+          ))}
+        </ScrollView>
+
+        {footerActionLabel && onFooterAction ? (
+          <View style={[drawer.footer, { borderTopColor: theme.borderColor }]}>
+            <TouchableOpacity
+              style={[drawer.footerButton, { backgroundColor: theme.footerButtonColor }]}
+              onPress={() => {
+                onClose();
+                onFooterAction();
+              }}
+            >
+              <Text style={[drawer.footerButtonText, { color: theme.footerButtonTextColor }]}>
+                {footerActionLabel}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+      </Animated.View>
+    </View>
+  );
+};
+
 const WebDashboardShell = ({
   welcome,
   roleLabel,
@@ -1072,86 +1315,81 @@ const WebDashboardShell = ({
   onLogout,
   onOpenProfile,
   children,
-}) => (
-  <SafeAreaView style={webDash.page}>
-    <View style={[webDash.header, { paddingTop: 12 + ANDROID_TOP_INSET }]}>
-      <View style={webDash.brandBlock}>
-        <View style={webDash.logoCircle}>
-          <Text style={webDash.logoText}>NK</Text>
-        </View>
-        <View style={{ flex: 1 }}>
-          <Text style={webDash.roleLabel}>{roleLabel}</Text>
-          <Text style={webDash.brandName}>{BRAND_NAME}</Text>
-          <Text style={webDash.welcome}>{welcome}</Text>
-        </View>
-      </View>
-      <View style={webDash.headerActions}>
-        <TouchableOpacity style={webDash.profileButton} onPress={onOpenProfile}>
-          <Text style={webDash.profileIcon}>
-            {(user?.name || 'U').split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2)}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={webDash.logoutButton} onPress={onLogout}>
-          <Text style={webDash.logoutButtonText}>Logout</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+}) => {
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
-    <View style={webDash.body}>
-      <View style={webDash.sidebar}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={webDash.menuScroll}
-        >
-          {menuItems.map((item) => (
-            <TouchableOpacity
-              key={item.key || item.label}
-              style={[
-                webDash.menuButton,
-                activeTab === item.key && webDash.menuButtonActive,
-                item.disabled && webDash.menuButtonDisabled,
-              ]}
-              onPress={() => !item.disabled && item.key && onTabChange(item.key)}
-              disabled={item.disabled}
-            >
-              <View style={webDash.menuButtonContent}>
-                <Text style={[
-                  webDash.menuText,
-                  activeTab === item.key && webDash.menuTextActive,
-                  item.disabled && webDash.menuTextDisabled,
-                ]}>
-                  {item.label}
-                </Text>
-                {item.badge ? (
-                  <View style={[
-                    webDash.menuBadge,
-                    activeTab === item.key && webDash.menuBadgeActive,
-                    item.disabled && webDash.menuBadgeDisabled,
-                  ]}>
-                    <Text style={[
-                      webDash.menuBadgeText,
-                      activeTab === item.key && webDash.menuBadgeTextActive,
-                      item.disabled && webDash.menuBadgeTextDisabled,
-                    ]}>
-                      {item.badge}
-                    </Text>
-                  </View>
-                ) : null}
+  return (
+    <SafeAreaView style={webDash.page}>
+      <View style={[webDash.header, { paddingTop: 12 + ANDROID_TOP_INSET }]}>
+        <View style={webDash.headerTopRow}>
+          <View style={webDash.headerLeftCluster}>
+            <TouchableOpacity style={webDash.menuToggle} onPress={() => setDrawerOpen(true)}>
+              <Text style={webDash.menuToggleText}>|||</Text>
+            </TouchableOpacity>
+            <View style={webDash.headerTitleBlock}>
+              <Text style={webDash.headerWelcomeText}>{welcome}</Text>
+              <Text style={webDash.headerBrandText}>{BRAND_NAME}</Text>
+            </View>
+          </View>
+          <View style={webDash.headerActions}>
+            <TouchableOpacity style={webDash.profileButton} onPress={onOpenProfile}>
+              <View style={webDash.profileGlyph}>
+                <View style={webDash.profileGlyphHead} />
+                <View style={webDash.profileGlyphBody} />
               </View>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      <View style={webDash.mainScroll}>
-        <View style={webDash.contentPanel}>
-          {children}
+            <TouchableOpacity style={webDash.logoutButton} onPress={onLogout}>
+              <Text style={webDash.logoutButtonText}>Logout</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
-    </View>
-  </SafeAreaView>
-);
+
+      <DashboardDrawer
+        visible={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        menuItems={menuItems}
+        activeTab={activeTab}
+        onSelect={onTabChange}
+        userName={user?.name}
+        theme={{
+          overlayColor: 'rgba(15, 23, 42, 0.55)',
+          panelColor: '#ffffff',
+          borderColor: '#e2e8f0',
+          eyebrowColor: '#64748b',
+          titleColor: '#1e3a8a',
+          closeButtonColor: '#fee2e2',
+          closeButtonTextColor: '#b91c1c',
+          sectionTitleColor: '#64748b',
+          itemColor: '#ffffff',
+          activeItemColor: '#2563eb',
+          itemTextColor: '#0f172a',
+          activeItemTextColor: '#ffffff',
+          disabledTextColor: '#94a3b8',
+          iconBackgroundColor: '#eff6ff',
+          iconBorderColor: '#bfdbfe',
+          activeIconBackgroundColor: '#ffffff',
+          activeIconBorderColor: '#dbeafe',
+          iconTextColor: '#1d4ed8',
+          activeIconTextColor: '#2563eb',
+          badgeColor: '#dc2626',
+          activeBadgeColor: '#ffffff',
+          badgeTextColor: '#ffffff',
+          activeBadgeTextColor: '#2563eb',
+          disabledBadgeColor: '#cbd5e1',
+          footerButtonColor: '#dc2626',
+          footerButtonTextColor: '#ffffff',
+        }}
+      />
+
+      <View style={webDash.body}>
+        <View style={webDash.mainScroll}>
+          <View style={webDash.contentPanel}>{children}</View>
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+};
 
 const WebPageTitle = ({ title, subtitle, actionLabel, onActionPress }) => (
   <View style={webDash.pageTitleRow}>
@@ -1229,57 +1467,182 @@ const shared = StyleSheet.create({
   sectionAction: { fontSize: 13, color: '#0ea5e9', fontWeight: '700' },
 });
 
+const drawer = StyleSheet.create({
+  overlayWrap: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 40,
+    elevation: 40,
+  },
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  panel: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    borderRightWidth: 1,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 10, height: 0 },
+    shadowOpacity: 0.2,
+    shadowRadius: 24,
+    elevation: 18,
+  },
+  header: {
+    paddingHorizontal: 18,
+    paddingTop: 22 + ANDROID_TOP_INSET,
+    paddingBottom: 14,
+    borderBottomWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerUserBlock: { flex: 1 },
+  headerUserLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  headerUserName: { fontSize: 18, fontWeight: '900' },
+  closeButton: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeButtonText: { fontSize: 14, fontWeight: '900' },
+  scrollContent: { paddingHorizontal: 14, paddingVertical: 16, paddingBottom: 26 },
+  sectionBlock: { marginBottom: 18 },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+    paddingHorizontal: 6,
+  },
+  sectionItems: { gap: 8 },
+  itemButton: {
+    minHeight: 56,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  itemButtonDisabled: { opacity: 0.68 },
+  itemIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemIconText: { fontSize: 11, fontWeight: '900', letterSpacing: 0.5 },
+  itemCopy: { flex: 1 },
+  itemText: { fontSize: 14, fontWeight: '800' },
+  itemBadge: {
+    minWidth: 24,
+    height: 24,
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  itemBadgeText: { fontSize: 11, fontWeight: '900' },
+  footer: {
+    borderTopWidth: 1,
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+  },
+  footerButton: {
+    minHeight: 46,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  footerButtonText: { fontSize: 14, fontWeight: '900' },
+});
+
 const webDash = StyleSheet.create({
   page: { flex: 1, backgroundColor: '#f4f7fb' },
   header: {
     backgroundColor: '#233f92',
     paddingHorizontal: 14,
     paddingBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 10,
   },
-  brandBlock: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: 10 },
-  logoCircle: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: '#e5e7eb',
-    borderWidth: 2,
-    borderColor: '#f8fafc',
+  headerTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  headerLeftCluster: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  menuToggle: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: { color: '#1e293b', fontSize: 11, fontWeight: '900' },
-  roleLabel: { color: '#fff', fontSize: 12, fontWeight: '900' },
-  brandName: { color: '#dbeafe', fontSize: 9, fontWeight: '800', marginTop: 2, lineHeight: 13 },
-  welcome: { color: '#fff', fontSize: 19, fontWeight: '900', marginTop: 8 },
-  headerActions: { flexDirection: 'column', alignItems: 'flex-end', gap: 8 },
+  menuToggleText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
+    transform: [{ rotate: '90deg' }],
+  },
+  headerTitleBlock: { flex: 1 },
+  headerWelcomeText: { color: '#dbeafe', fontSize: 15, fontWeight: '900' },
+  headerBrandText: { color: '#fff', fontSize: 18, fontWeight: '900', marginTop: 4, lineHeight: 21 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   profileButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
+  profileGlyph: { alignItems: 'center', justifyContent: 'center' },
+  profileGlyphHead: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#0f172a',
+  },
+  profileGlyphBody: {
+    width: 14,
+    height: 7,
+    borderTopLeftRadius: 7,
+    borderTopRightRadius: 7,
+    backgroundColor: '#0f172a',
+    marginTop: 2,
+  },
   profileIcon: { color: '#0f172a', fontWeight: '900', fontSize: 12 },
   logoutButton: {
     backgroundColor: '#dc2626',
-    borderRadius: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
   logoutButtonText: { color: '#fff', fontSize: 12, fontWeight: '900' },
   body: { flex: 1, flexDirection: 'column' },
-  sidebar: {
-    width: '100%',
-    backgroundColor: '#fff',
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
-  },
   menuScroll: { paddingHorizontal: 12, gap: 8 },
   menuButton: {
     minHeight: 38,
@@ -1974,6 +2337,10 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   };
 
   const openTimetableSlotEditor = (day, slot, entry = null) => {
+    if (!isAdminTimetableSlotAccessible(day, slot.startTime, slot.endTime)) {
+      return;
+    }
+
     const scrollToEditor = () => {
       setTimeout(() => {
         const targetY = Math.max(adminTimetableEditorOffsetRef.current - 24, 0);
@@ -2429,7 +2796,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       key,
       startTime,
       endTime,
-      cells: STUDENT_WEEK_DAYS.map((day) => {
+      cells: TIMETABLE_DAYS.map((day) => {
         const entry = filteredTimetableEntries.find(
           (item) => item.dayOfWeek === day && item.startTime === startTime && item.endTime === endTime
         );
@@ -2506,22 +2873,24 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const openAdminSuggestions = adminSuggestions.filter((item) => item.status === 'Open' || item.status === 'In Review');
   const resolvedAdminSuggestions = adminSuggestions.filter((item) => item.status === 'Resolved' || item.status === 'Closed');
   const adminMenuItems = [
-    { key: 'overview', label: 'Dashboard' },
-    { key: 'users', label: 'Users' },
-    { key: 'approvals', label: 'Pending Users' },
-    { key: 'students', label: 'Students' },
-    { key: 'courses', label: 'Class Details' },
-    { key: 'timetable', label: 'Timetable' },
+    { key: 'overview', label: 'Dashboard', section: 'Overview', icon: 'dashboard' },
+    { key: 'users', label: 'Users', section: 'Management', icon: 'groups' },
+    { key: 'approvals', label: 'Pending Users', section: 'Management', icon: 'person-add-alt-1' },
+    { key: 'students', label: 'Students', section: 'Management', icon: 'school' },
+    { key: 'courses', label: 'Class Details', section: 'Management', icon: 'menu-book' },
+    { key: 'timetable', label: 'Timetable', section: 'Management', icon: 'calendar-today' },
     {
       key: 'leaveRequests',
       label: 'Leave Requests',
+      section: 'Operations',
+      icon: 'event-note',
       badge: pendingLeaveRequests.length > 0 ? String(pendingLeaveRequests.length) : '',
     },
-    { key: 'studentPayments', label: 'Student Payment Details' },
-    { key: 'salaryDetails', label: 'Salary Details' },
-    { key: 'examResults', label: 'Exams & Results' },
-    { key: 'allSuggestions', label: 'All Suggestions' },
-    { key: 'mySuggestion', label: 'My Suggestion' },
+    { key: 'studentPayments', label: 'Student Payment Details', section: 'Finance', icon: 'payments' },
+    { key: 'salaryDetails', label: 'Salary Details', section: 'Finance', icon: 'account-balance-wallet' },
+    { key: 'examResults', label: 'Exams & Results', section: 'Academics', icon: 'fact-check' },
+    { key: 'allSuggestions', label: 'All Suggestions', section: 'Suggestions', icon: 'forum' },
+    { key: 'mySuggestion', label: 'My Suggestion', section: 'Suggestions', icon: 'lightbulb' },
   ];
   const totalMonthlyIncome = courses.reduce((sum, course) => sum + (Number(course.fee) || 0), 0);
   const activeUsers = userSummary.activeCount;
@@ -3350,7 +3719,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                     <View style={adm.adminTimetableTimeHeader}>
                       <Text style={adm.adminTimetableHeadText}>Time</Text>
                     </View>
-                    {STUDENT_WEEK_DAYS.map((day) => (
+                    {TIMETABLE_DAYS.map((day) => (
                       <View key={day} style={adm.adminTimetableDayHeader}>
                         <Text style={adm.adminTimetableHeadText}>{day}</Text>
                       </View>
@@ -3361,16 +3730,24 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                       <View style={adm.adminTimetableTimeCell}>
                         <Text style={adm.adminTimetableTimeText}>{row.slot}</Text>
                       </View>
-                      {row.cells.map(({ day, entry }) => (
+                      {row.cells.map(({ day, entry }) => {
+                        const isAccessible = isAdminTimetableSlotAccessible(day, row.startTime, row.endTime);
+                        return (
                         <View key={`${row.key}-${day}`} style={adm.adminTimetableDayCell}>
                           <TouchableOpacity
                             style={[
                               adm.adminTimetableSlotCard,
                               entry ? adm.adminTimetableSlotFilled : adm.adminTimetableSlotEmpty,
+                              !isAccessible && adm.adminTimetableSlotDisabled,
                             ]}
                             onPress={() => openTimetableSlotEditor(day, row, entry)}
+                            disabled={!isAccessible}
                           >
-                            {entry ? (
+                            {!isAccessible ? (
+                              <>
+                                <Text style={adm.adminTimetableSlotDisabledTitle}>Unavailable</Text>
+                              </>
+                            ) : entry ? (
                               <>
                                 <Text style={adm.adminTimetableSlotTitle} numberOfLines={2}>
                                   {entry.subject || getTimetableEntryTitle(entry)}
@@ -3387,7 +3764,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                             )}
                           </TouchableOpacity>
                         </View>
-                      ))}
+                      )})}
                     </View>
                   ))}
                 </View>
@@ -4718,6 +5095,7 @@ const adm = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 14,
     justifyContent: 'center',
+    alignItems: 'center',
     borderLeftWidth: 1,
     borderLeftColor: '#eef2f7',
   },
@@ -4727,6 +5105,7 @@ const adm = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
+    textAlign: 'center',
   },
   adminTimetableGridRow: {
     flexDirection: 'row',
@@ -4764,6 +5143,10 @@ const adm = StyleSheet.create({
     borderColor: '#dbeafe',
   },
   adminTimetableSlotEmpty: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#bfdbfe',
+  },
+  adminTimetableSlotDisabled: {
     backgroundColor: '#fff1f2',
     borderColor: '#fecdd3',
   },
@@ -4789,12 +5172,25 @@ const adm = StyleSheet.create({
     textAlign: 'center',
   },
   adminTimetableSlotEmptyTitle: {
-    color: '#b91c1c',
+    color: '#1d4ed8',
     fontSize: 14,
     fontWeight: '900',
     textAlign: 'center',
   },
   adminTimetableSlotEmptyHint: {
+    color: '#2563eb',
+    fontSize: 11,
+    fontWeight: '800',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  adminTimetableSlotDisabledTitle: {
+    color: '#b91c1c',
+    fontSize: 14,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  adminTimetableSlotDisabledHint: {
     color: '#e11d48',
     fontSize: 11,
     fontWeight: '800',
@@ -5245,15 +5641,15 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   };
 
   const tutorMenuItems = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'timetable', label: 'My Classes' },
-    { key: 'students', label: 'Attendance' },
-    { key: 'enrollments', label: 'Salary Summary' },
-    { key: 'leaveRequests', label: 'Leave Requests' },
-    { key: 'examResults', label: 'Exam & Results' },
-    { key: 'mySuggestion', label: 'My Suggestion' },
-    { key: 'newSuggestion', label: 'New Suggestion/Complaints' },
-    { key: 'profile', label: 'Tutor Profile' },
+    { key: 'overview', label: 'Overview', section: 'Overview', icon: 'dashboard' },
+    { key: 'timetable', label: 'My Classes', section: 'Teaching', icon: 'co-present' },
+    { key: 'students', label: 'Attendance', section: 'Teaching', icon: 'how-to-reg' },
+    { key: 'enrollments', label: 'Salary Summary', section: 'Teaching', icon: 'payments' },
+    { key: 'leaveRequests', label: 'Leave Requests', section: 'Teaching', icon: 'event-note' },
+    { key: 'examResults', label: 'Exam & Results', section: 'Teaching', icon: 'grading' },
+    { key: 'mySuggestion', label: 'My Suggestion', section: 'Suggestions', icon: 'lightbulb' },
+    { key: 'newSuggestion', label: 'New Suggestion/Complaints', section: 'Suggestions', icon: 'edit-note' },
+    { key: 'profile', label: 'Tutor Profile', section: 'Account', icon: 'person' },
   ];
   const selectedTutorExam = tutorExamOptions.find((exam) => exam.id === selectedTutorExamId) || tutorExamOptions[0] || null;
   const leaveYearOptions = Array.from({ length: 3 }, (_, index) => String(new Date().getFullYear() + index));
@@ -6382,29 +6778,27 @@ const StudentDashboardShell = ({
   isDesktop,
   children,
 }) => {
-  const initials = (user.name || 'Student')
-    .split(' ')
-    .map((part) => part[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase();
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   return (
     <SafeAreaView style={studentShell.page}>
       <View style={[studentShell.header, { paddingTop: 12 + ANDROID_TOP_INSET }]}>
         <View style={studentShell.headerLeft}>
-          <View style={studentShell.logoBadge}>
-            <Text style={studentShell.logoText}>NK</Text>
-          </View>
+          <TouchableOpacity style={studentShell.menuToggle} onPress={() => setDrawerOpen(true)}>
+            <Text style={studentShell.menuToggleText}>|||</Text>
+          </TouchableOpacity>
           <View style={studentShell.titleBlock}>
-            <Text style={studentShell.welcome}>Welcome, Student!</Text>
+            <Text style={studentShell.pageTitle}>Welcome, Student!</Text>
             <Text style={studentShell.brandName}>{BRAND_NAME}</Text>
           </View>
         </View>
 
         <View style={studentShell.headerRight}>
           <TouchableOpacity style={studentShell.profileButton} onPress={onOpenProfile}>
-            <Text style={studentShell.profileText}>{initials}</Text>
+            <View style={studentShell.profileGlyph}>
+              <View style={studentShell.profileGlyphHead} />
+              <View style={studentShell.profileGlyphBody} />
+            </View>
           </TouchableOpacity>
           <TouchableOpacity style={studentShell.logoutButton} onPress={onLogout}>
             <Text style={studentShell.logoutText}>Logout</Text>
@@ -6412,39 +6806,44 @@ const StudentDashboardShell = ({
         </View>
       </View>
 
-      <View style={[studentShell.body, isDesktop ? studentShell.bodyDesktop : studentShell.bodyMobile]}>
-        <View style={[studentShell.sidebar, isDesktop ? studentShell.sidebarDesktop : studentShell.sidebarMobile]}>
-          <ScrollView
-            horizontal={!isDesktop}
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={[
-              studentShell.sidebarScroll,
-              isDesktop && studentShell.sidebarScrollDesktop,
-            ]}
-          >
-            {menuItems.map((item) => (
-              <TouchableOpacity
-                key={item.key}
-                style={[
-                  studentShell.sidebarButton,
-                  activeTab === item.key && studentShell.sidebarButtonActive,
-                  isDesktop && studentShell.sidebarButtonDesktop,
-                ]}
-                onPress={() => onTabChange(item.key)}
-              >
-                <Text
-                  style={[
-                    studentShell.sidebarButtonText,
-                    activeTab === item.key && studentShell.sidebarButtonTextActive,
-                  ]}
-                >
-                  {item.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
+      <DashboardDrawer
+        visible={drawerOpen}
+        onClose={() => setDrawerOpen(false)}
+        menuItems={menuItems}
+        activeTab={activeTab}
+        onSelect={onTabChange}
+        userName={user?.name}
+        theme={{
+          overlayColor: 'rgba(12, 23, 43, 0.5)',
+          panelColor: '#ffffff',
+          borderColor: '#e2e8f0',
+          eyebrowColor: '#64748b',
+          titleColor: '#1f3b72',
+          closeButtonColor: '#fee2e2',
+          closeButtonTextColor: '#b91c1c',
+          sectionTitleColor: '#7284a2',
+          itemColor: '#ffffff',
+          activeItemColor: '#2f60d3',
+          itemTextColor: '#102a4f',
+          activeItemTextColor: '#ffffff',
+          disabledTextColor: '#94a3b8',
+          iconBackgroundColor: '#eef4ff',
+          iconBorderColor: '#c9dafb',
+          activeIconBackgroundColor: '#ffffff',
+          activeIconBorderColor: '#e0eaff',
+          iconTextColor: '#2f60d3',
+          activeIconTextColor: '#2f60d3',
+          badgeColor: '#ef4444',
+          activeBadgeColor: '#ffffff',
+          badgeTextColor: '#ffffff',
+          activeBadgeTextColor: '#2f60d3',
+          disabledBadgeColor: '#cbd5e1',
+          footerButtonColor: '#ef3b36',
+          footerButtonTextColor: '#ffffff',
+        }}
+      />
 
+      <View style={[studentShell.body, isDesktop ? studentShell.bodyDesktop : studentShell.bodyMobile]}>
         <View style={studentShell.contentArea}>
           <ScrollView contentContainerStyle={studentShell.contentScroll} showsVerticalScrollIndicator={false}>
             <View style={studentShell.contentCard}>{children}</View>
@@ -6582,10 +6981,9 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     assignedGrade ||
     courseList.find((course) => course.grade)?.grade ||
     'Grade 7';
-  const filteredTimetable = (assignedGrade ? timetableEntries.filter((entry) => {
-    const entryGrade = String(entry?.courseId?.grade || entry?.grade || '').trim();
-    return !currentGrade || !entryGrade || entryGrade === currentGrade;
-  }) : timetableEntries);
+  const filteredTimetable = currentGrade
+    ? timetableEntries.filter((entry) => getTimetableEntryGrade(entry, courseList) === currentGrade)
+    : timetableEntries;
   const timetableStatus = filteredTimetable.length > 0 ? 'Auto-updating' : 'Waiting for entries';
   const timetableSubjects = [
     ...new Set(
@@ -6729,7 +7127,9 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     return {
       slot: label,
       key: slot.key,
-      cells: STUDENT_WEEK_DAYS.map((day) => {
+      startTime,
+      endTime,
+      cells: TIMETABLE_DAYS.map((day) => {
         const entry = filteredTimetable.find(
           (item) => item.dayOfWeek === day && item.startTime === startTime && item.endTime === endTime
         );
@@ -6843,14 +7243,14 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   };
 
   const studentMenuItems = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'timetable', label: 'Timetable' },
-    { key: 'fee', label: 'Fee & Payment' },
-    { key: 'attendance', label: 'Attendance' },
-    { key: 'results', label: 'Exam & Results' },
-    { key: 'mySuggestion', label: 'My Suggestion' },
-    { key: 'newSuggestion', label: 'New Suggestion/Complaints' },
-    { key: 'profile', label: 'Student Profile' },
+    { key: 'overview', label: 'Overview', section: 'Overview', icon: 'dashboard' },
+    { key: 'timetable', label: 'Timetable', section: 'Study', icon: 'calendar-month' },
+    { key: 'fee', label: 'Fee & Payment', section: 'Study', icon: 'receipt-long' },
+    { key: 'attendance', label: 'Attendance', section: 'Study', icon: 'fact-check' },
+    { key: 'results', label: 'Exam & Results', section: 'Study', icon: 'emoji-events' },
+    { key: 'mySuggestion', label: 'My Suggestion', section: 'Suggestions', icon: 'lightbulb' },
+    { key: 'newSuggestion', label: 'New Suggestion/Complaints', section: 'Suggestions', icon: 'edit-note' },
+    { key: 'profile', label: 'Student Profile', section: 'Account', icon: 'person' },
   ];
 
   return (
@@ -7297,53 +7697,59 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             <ScrollView horizontal showsHorizontalScrollIndicator={false}>
               <View style={studentDash.timetableWrap}>
                 <View style={[studentDash.timetableRow, studentDash.tableHeader]}>
-                  <Text style={[studentDash.timeCell, studentDash.tableHead]}>Time</Text>
-                  {STUDENT_WEEK_DAYS.map((day) => (
-                    <Text
+                  <View style={studentDash.timeCellWrap}>
+                    <Text style={[studentDash.timeCell, studentDash.tableHead]}>Time</Text>
+                  </View>
+                  {TIMETABLE_DAYS.map((day) => (
+                    <View
                       key={day}
                       style={[
-                        studentDash.scheduleCell,
-                        studentDash.tableHead,
+                        studentDash.scheduleColumn,
                         day === currentDayName && studentDash.currentDayHeader,
                       ]}
                     >
-                      {day}
-                    </Text>
+                      <Text style={[studentDash.scheduleCell, studentDash.tableHead]}>{day}</Text>
+                    </View>
                   ))}
                 </View>
 
                 {timetableRows.map((row) => (
                   <View key={row.slot} style={studentDash.timetableRow}>
-                    <Text style={[studentDash.timeCell, row.key === activeTimetableSlotKey && studentDash.currentTimeCell]}>{row.slot}</Text>
+                    <View style={studentDash.timeCellWrap}>
+                      <Text style={[studentDash.timeCell, row.key === activeTimetableSlotKey && studentDash.currentTimeCell]}>{row.slot}</Text>
+                    </View>
                     {row.cells.map(({ day, entry }) => {
-                      const isWeekend = day === 'Saturday' || day === 'Sunday';
+                      const isAccessible = isAdminTimetableSlotAccessible(day, row.startTime, row.endTime);
                       const isCurrentSlot = day === currentDayName && row.key === activeTimetableSlotKey;
                       return (
                         <View
                           key={`${row.slot}-${day}`}
-                          style={[
-                            studentDash.scheduleCell,
-                            studentDash.scheduleBox,
-                            entry
-                              ? studentDash.scheduleBoxFilled
-                              : isWeekend
-                                ? studentDash.scheduleBoxEmpty
-                                : studentDash.scheduleBoxUnavailable,
-                            isCurrentSlot && studentDash.scheduleBoxCurrent,
-                          ]}
+                          style={studentDash.scheduleColumn}
                         >
+                          <View
+                            style={[
+                              studentDash.scheduleBox,
+                              entry
+                                ? studentDash.scheduleBoxFilled
+                                : isAccessible
+                                  ? studentDash.scheduleBoxEmpty
+                                  : studentDash.scheduleBoxUnavailable,
+                              isCurrentSlot && studentDash.scheduleBoxCurrent,
+                            ]}
+                          >
                           {entry ? (
                             <>
                               <Text style={studentDash.scheduleTitle} numberOfLines={2}>{formatTimetableEntryTitle(entry, courseList)}</Text>
                               <Text style={studentDash.scheduleSub} numberOfLines={2}>
                                 {[entry.subject, entry.room].filter(Boolean).join(' â€¢ ')}
                               </Text>
-                            </>
-                          ) : (
-                            <Text style={isWeekend ? studentDash.scheduleEmptyText : studentDash.scheduleUnavailableText}>
-                              {isWeekend ? 'No class' : 'Not available'}
-                            </Text>
-                          )}
+                              </>
+                            ) : (
+                              <Text style={isAccessible ? studentDash.scheduleEmptyText : studentDash.scheduleUnavailableText}>
+                                {isAccessible ? 'No class' : 'Not available'}
+                              </Text>
+                            )}
+                          </View>
                         </View>
                       );
                     })}
@@ -7520,21 +7926,27 @@ const studentShell = StyleSheet.create({
     gap: 12,
   },
   headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  logoBadge: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: '#f7f9ff',
-    borderWidth: 2,
-    borderColor: '#dbe4ff',
+  menuToggle: {
+    width: 42,
+    height: 42,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  logoText: { color: '#27498f', fontSize: 14, fontWeight: '900' },
+  menuToggleText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 1,
+    transform: [{ rotate: '90deg' }],
+  },
   titleBlock: { flex: 1 },
-  welcome: { color: '#fff', fontSize: 18, fontWeight: '900' },
-  brandName: { color: '#f7f9ff', fontSize: 12, fontWeight: '800', marginTop: 4 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pageTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  brandName: { color: '#f7f9ff', fontSize: 15, fontWeight: '900', marginTop: 4, lineHeight: 18 },
+  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   profileButton: {
     width: 38,
     height: 38,
@@ -7543,57 +7955,32 @@ const studentShell = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  profileGlyph: { alignItems: 'center', justifyContent: 'center' },
+  profileGlyphHead: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#1f2937',
+  },
+  profileGlyphBody: {
+    width: 16,
+    height: 8,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: '#1f2937',
+    marginTop: 2,
+  },
   profileText: { color: '#1f2937', fontSize: 12, fontWeight: '800' },
   logoutButton: {
     backgroundColor: '#ef3b36',
     borderRadius: 12,
-    paddingHorizontal: 18,
-    paddingVertical: 11,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
   },
   logoutText: { color: '#fff', fontSize: 13, fontWeight: '900' },
   body: { flex: 1 },
   bodyDesktop: { flexDirection: 'row' },
   bodyMobile: { flexDirection: 'column' },
-  sidebar: {
-    backgroundColor: '#edf3ff',
-    borderColor: '#b7c9ef',
-  },
-  sidebarDesktop: {
-    width: 230,
-    borderRightWidth: 1,
-    paddingVertical: 18,
-  },
-  sidebarMobile: {
-    borderBottomWidth: 1,
-    paddingVertical: 10,
-  },
-  sidebarScroll: {
-    paddingHorizontal: 12,
-    gap: 10,
-  },
-  sidebarScrollDesktop: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  sidebarButton: {
-    minHeight: 42,
-    borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    justifyContent: 'center',
-    backgroundColor: 'transparent',
-  },
-  sidebarButtonDesktop: { width: '100%' },
-  sidebarButtonActive: {
-    backgroundColor: '#355594',
-    shadowColor: '#223d72',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 4,
-  },
-  sidebarButtonText: { color: '#101827', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  sidebarButtonTextActive: { color: '#fff' },
   contentArea: { flex: 1 },
   contentScroll: { padding: 16, paddingBottom: 40 },
   contentCard: {
@@ -8149,7 +8536,7 @@ const studentDash = StyleSheet.create({
     minWidth: 1080,
     borderWidth: 1,
     borderColor: '#e3ebf6',
-    borderRadius: 16,
+    borderRadius: 18,
     overflow: 'hidden',
     backgroundColor: '#fff',
   },
@@ -8159,39 +8546,62 @@ const studentDash = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#edf2f8',
   },
-  timeCell: {
+  timeCellWrap: {
     width: 160,
+    justifyContent: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#edf2f8',
+    backgroundColor: '#fff',
+  },
+  timeCell: {
     paddingHorizontal: 14,
-    paddingVertical: 14,
-    color: '#1f2937',
-    fontSize: 14,
-    fontWeight: '800',
+    paddingVertical: 16,
+    color: '#1e3a5f',
+    fontSize: 15,
+    fontWeight: '900',
+    lineHeight: 28,
+    backgroundColor: '#fff',
+    textAlign: 'left',
+    textAlignVertical: 'center',
+  },
+  scheduleColumn: {
+    width: 164,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRightWidth: 1,
+    borderRightColor: '#edf2f8',
   },
   scheduleCell: {
-    width: 140,
-    paddingHorizontal: 12,
+    width: '100%',
+    paddingHorizontal: 8,
     paddingVertical: 12,
     color: '#334155',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '900',
+    textAlign: 'center',
+    textAlignVertical: 'center',
   },
   scheduleBox: {
-    minHeight: 126,
-    margin: 10,
-    borderRadius: 14,
+    width: '100%',
+    minHeight: 132,
+    borderRadius: 18,
     borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 12,
   },
-  scheduleBoxUnavailable: { backgroundColor: '#ffe3e3', borderColor: '#f5bfc0' },
+  scheduleBoxUnavailable: { backgroundColor: '#fff1f2', borderColor: '#fecdd3' },
   scheduleBoxEmpty: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
-  scheduleBoxFilled: { backgroundColor: '#e0f2fe', borderColor: '#7dd3fc', paddingHorizontal: 8 },
+  scheduleBoxFilled: { backgroundColor: '#e0f2fe', borderColor: '#7dd3fc', paddingHorizontal: 10 },
   scheduleBoxCurrent: { borderColor: '#2563eb', borderWidth: 2, shadowColor: '#2563eb', shadowOpacity: 0.18, shadowRadius: 10, elevation: 3 },
   scheduleTitle: { color: '#0f172a', fontSize: 13, fontWeight: '900', textAlign: 'center' },
   scheduleSub: { color: '#475569', fontSize: 12, fontWeight: '700', marginTop: 8, textAlign: 'center' },
-  scheduleUnavailableText: { color: '#b23a40', fontSize: 14, fontWeight: '800', textAlign: 'center' },
+  scheduleUnavailableText: { color: '#dc2626', fontSize: 14, fontWeight: '900', textAlign: 'center' },
   scheduleEmptyText: { color: '#98a5b8', fontSize: 14, fontWeight: '800', textAlign: 'center' },
-  currentDayHeader: { color: '#2563eb' },
+  currentDayHeader: { backgroundColor: '#eff6ff' },
   currentTimeCell: { color: '#2563eb' },
   toggleRow: { flexDirection: 'row', gap: 12, marginBottom: 16 },
   toggleButton: {
@@ -8545,12 +8955,62 @@ export default function App() {
 
   // Default: student
   return (
-    <StudentDashboard
-      token={token}
-      user={user}
-      onUserUpdated={handleUserUpdated}
-      onLogout={handleLogout}
-    />
+    <ScreenErrorBoundary label="Student dashboard">
+      <StudentDashboard
+        token={token}
+        user={user}
+        onUserUpdated={handleUserUpdated}
+        onLogout={handleLogout}
+      />
+    </ScreenErrorBoundary>
   );
 }
 
+class ScreenErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+    this.handleReset = this.handleReset.bind(this);
+  }
+
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+
+  componentDidCatch(error) {
+    console.error(`Screen error in ${this.props.label || 'screen'}:`, error);
+  }
+
+  handleReset() {
+    this.setState({ error: null });
+    if (typeof this.props.onReset === 'function') {
+      this.props.onReset();
+    }
+  }
+
+  render() {
+    if (!this.state.error) {
+      return this.props.children;
+    }
+
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', justifyContent: 'center', padding: 24 }}>
+        <View style={{ backgroundColor: '#1e293b', borderRadius: 18, padding: 20, borderWidth: 1, borderColor: '#334155' }}>
+          <Text style={{ color: '#fff', fontSize: 20, fontWeight: '800' }}>Unable to load this screen</Text>
+          <Text style={{ color: '#cbd5e1', fontSize: 14, marginTop: 10 }}>
+            {this.props.label || 'This screen'} hit an error while rendering.
+          </Text>
+          <Text style={{ color: '#fca5a5', fontSize: 13, marginTop: 12 }}>
+            {String(this.state.error?.message || this.state.error)}
+          </Text>
+          <TouchableOpacity
+            style={{ marginTop: 18, backgroundColor: '#2563eb', borderRadius: 12, paddingVertical: 12, alignItems: 'center' }}
+            onPress={this.handleReset}
+          >
+            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '800' }}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+}
