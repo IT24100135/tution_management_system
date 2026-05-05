@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import {
   ActivityIndicator,
   Alert,
@@ -9,6 +10,7 @@ import {
   ImageBackground,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -1413,9 +1415,9 @@ const DashboardDrawer = ({
                 {section.items.map((item) => {
                   const isActive = activeTab === item.key;
                   return (
-                    <TouchableOpacity
+                    <Pressable
                       key={item.key || item.label}
-                      style={[
+                      style={({ hovered, pressed }) => [
                         drawer.itemButton,
                         {
                           backgroundColor: theme.itemColor,
@@ -1425,6 +1427,10 @@ const DashboardDrawer = ({
                           backgroundColor: theme.activeItemColor,
                           borderColor: theme.activeItemColor,
                         },
+                        hovered && !item.disabled && drawer.itemButtonHovered,
+                        hovered && !item.disabled && { transform: [{ translateX: 4 }, { scale: 1.01 }] },
+                        pressed && !item.disabled && drawer.itemButtonPressed,
+                        pressed && !item.disabled && { transform: [{ translateX: 2 }, { scale: 0.995 }] },
                         item.disabled && drawer.itemButtonDisabled,
                       ]}
                       onPress={() => {
@@ -1494,7 +1500,7 @@ const DashboardDrawer = ({
                           </Text>
                         </View>
                       ) : null}
-                    </TouchableOpacity>
+                    </Pressable>
                   );
                 })}
               </View>
@@ -1602,23 +1608,23 @@ const WebDashboardShell = ({
         userName={user?.name}
         theme={{
           overlayColor: 'rgba(15, 23, 42, 0.55)',
-          panelColor: '#ffffff',
-          borderColor: '#e2e8f0',
-          eyebrowColor: '#64748b',
-          titleColor: '#1e3a8a',
-          closeButtonColor: '#fee2e2',
-          closeButtonTextColor: '#b91c1c',
-          sectionTitleColor: '#64748b',
-          itemColor: '#ffffff',
+          panelColor: '#0f172a',
+          borderColor: '#1e293b',
+          eyebrowColor: '#94a3b8',
+          titleColor: '#f8fafc',
+          closeButtonColor: '#1e293b',
+          closeButtonTextColor: '#f8fafc',
+          sectionTitleColor: '#94a3b8',
+          itemColor: '#111c34',
           activeItemColor: '#2563eb',
-          itemTextColor: '#0f172a',
+          itemTextColor: '#e2e8f0',
           activeItemTextColor: '#ffffff',
           disabledTextColor: '#94a3b8',
-          iconBackgroundColor: '#eff6ff',
-          iconBorderColor: '#bfdbfe',
+          iconBackgroundColor: '#172554',
+          iconBorderColor: '#1d4ed8',
           activeIconBackgroundColor: '#ffffff',
           activeIconBorderColor: '#dbeafe',
-          iconTextColor: '#1d4ed8',
+          iconTextColor: '#bfdbfe',
           activeIconTextColor: '#2563eb',
           badgeColor: '#dc2626',
           activeBadgeColor: '#ffffff',
@@ -1792,6 +1798,18 @@ const drawer = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  itemButtonHovered: {
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 4,
+  },
+  itemButtonPressed: {
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
   itemButtonDisabled: { opacity: 0.68 },
   itemIcon: {
@@ -5042,18 +5060,18 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
         )}
 
         {!loading && tab === 'profile' && (
-          <View style={adm.card}>
-            <SectionHeader title="Admin Profile" />
+          <View style={[adm.card, adm.profileCardDark]}>
+            <Text style={adm.profileTitle}>Admin Profile</Text>
             <View style={[adm.avatar, { width: 70, height: 70, borderRadius: 35, alignSelf: 'center', marginBottom: 14 }]}>
               <Text style={[adm.avatarText, { fontSize: 22 }]}>
                 {(user.name || 'A').split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2)}
               </Text>
             </View>
-            <Text style={[adm.formLabel, { textAlign: 'center', marginBottom: 14 }]}>ADMIN ACCOUNT</Text>
+            <Text style={[adm.formLabel, adm.profileLabelDark, { textAlign: 'center', marginBottom: 14 }]}>ADMIN ACCOUNT</Text>
             <View style={adm.formField}>
-              <Text style={adm.formLabel}>Full Name</Text>
+              <Text style={[adm.formLabel, adm.profileLabelDark]}>Full Name</Text>
               <TextInput
-                style={[adm.input, adm.formInput]}
+                style={[adm.input, adm.formInput, adm.profileInputDark]}
                 placeholder="Full name"
                 value={profileName}
                 onChangeText={setProfileName}
@@ -5062,9 +5080,9 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
               />
             </View>
             <View style={adm.formField}>
-              <Text style={adm.formLabel}>Email</Text>
+              <Text style={[adm.formLabel, adm.profileLabelDark]}>Email</Text>
               <TextInput
-                style={[adm.input, adm.formInput]}
+                style={[adm.input, adm.formInput, adm.profileInputDark]}
                 placeholder="Email"
                 value={profileEmail}
                 onChangeText={setProfileEmail}
@@ -5074,11 +5092,11 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                 placeholderTextColor="#94a3b8"
               />
             </View>
-            <View style={[adm.card, { backgroundColor: '#f8fafc', marginBottom: 0 }]}>
-              <Text style={adm.formLabel}>Role</Text>
-              <Text style={adm.rowName}>Admin</Text>
-              <Text style={[adm.formLabel, { marginTop: 12 }]}>Status</Text>
-              <Text style={adm.rowName}>{user.approvalStatus || 'approved'}</Text>
+            <View style={[adm.card, adm.profileInfoCardDark, { marginBottom: 0 }]}>
+              <Text style={[adm.formLabel, adm.profileLabelDark]}>Role</Text>
+              <Text style={[adm.rowName, adm.profileValueDark]}>Admin</Text>
+              <Text style={[adm.formLabel, adm.profileLabelDark, { marginTop: 12 }]}>Status</Text>
+              <Text style={[adm.rowName, adm.profileValueDark]}>{user.approvalStatus || 'approved'}</Text>
             </View>
             <TouchableOpacity
               style={[adm.actionBtn, profileSaving && adm.actionBtnDisabled]}
@@ -5134,6 +5152,17 @@ const adm = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  profileCardDark: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  profileTitle: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 14,
+  },
   listRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f1f5f9', gap: 10 },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#ede9fe', alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#7c3aed', fontWeight: '800', fontSize: 16 },
@@ -5144,6 +5173,8 @@ const adm = StyleSheet.create({
   helperText: { fontSize: 12, color: '#64748b', marginBottom: 12, lineHeight: 18 },
   formField: { marginBottom: 14 },
   formLabel: { fontSize: 12, color: '#64748b', fontWeight: '700', marginBottom: 6, letterSpacing: 0.3 },
+  profileLabelDark: { color: '#94a3b8' },
+  profileValueDark: { color: '#f8fafc' },
   manageSwitchRow: { flexDirection: 'row', gap: 10, marginTop: 4 },
   manageSwitchBtn: {
     flex: 1,
@@ -5678,6 +5709,16 @@ const adm = StyleSheet.create({
     fontSize: 14,
     color: '#0f172a',
     marginBottom: 10,
+  },
+  profileInputDark: {
+    backgroundColor: '#111c34',
+    borderColor: '#334155',
+    color: '#e2e8f0',
+  },
+  profileInfoCardDark: {
+    backgroundColor: '#111827',
+    borderWidth: 1,
+    borderColor: '#1f2937',
   },
   formInput: { marginBottom: 0 },
   actionBtn: {
@@ -6273,8 +6314,8 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
         )}
 
         {!loading && tab === 'profile' && (
-          <View style={tut.card}>
-            <SectionHeader title="Tutor Profile" />
+          <View style={[tut.card, tut.profileCardDark]}>
+            <Text style={tut.profileTitle}>Tutor Profile</Text>
             <View style={tut.profileAvatar}>
               <Text style={tut.profileAvatarText}>
                 {(user.name || 'T').split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2)}
@@ -6282,7 +6323,7 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             </View>
             <Text style={tut.profileRole}>TUTOR ACCOUNT</Text>
             <TextInput
-              style={tut.input}
+              style={[tut.input, tut.profileInputDark]}
               placeholder="Full name"
               value={profileName}
               onChangeText={setProfileName}
@@ -6290,7 +6331,7 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
               placeholderTextColor="#94a3b8"
             />
             <TextInput
-              style={tut.input}
+              style={[tut.input, tut.profileInputDark]}
               placeholder="Email"
               value={profileEmail}
               onChangeText={setProfileEmail}
@@ -6300,20 +6341,20 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
               placeholderTextColor="#94a3b8"
             />
             <TextInput
-              style={tut.input}
+              style={[tut.input, tut.profileInputDark]}
               placeholder="Subject"
               value={profileSubject}
               onChangeText={setProfileSubject}
               showSoftInputOnFocus
               placeholderTextColor="#94a3b8"
             />
-            <View style={tut.profileInfoBox}>
-              <Text style={tut.profileInfoLabel}>Role</Text>
-              <Text style={tut.profileInfoValue}>Tutor</Text>
-              <Text style={tut.profileInfoLabel}>Subject</Text>
-              <Text style={tut.profileInfoValue}>{user.subject || 'Not set'}</Text>
-              <Text style={tut.profileInfoLabel}>Status</Text>
-              <Text style={tut.profileInfoValue}>{user.approvalStatus || 'approved'}</Text>
+            <View style={[tut.profileInfoBox, tut.profileInfoBoxDark]}>
+              <Text style={[tut.profileInfoLabel, tut.profileInfoLabelDark]}>Role</Text>
+              <Text style={[tut.profileInfoValue, tut.profileInfoValueDark]}>Tutor</Text>
+              <Text style={[tut.profileInfoLabel, tut.profileInfoLabelDark]}>Subject</Text>
+              <Text style={[tut.profileInfoValue, tut.profileInfoValueDark]}>{user.subject || 'Not set'}</Text>
+              <Text style={[tut.profileInfoLabel, tut.profileInfoLabelDark]}>Status</Text>
+              <Text style={[tut.profileInfoValue, tut.profileInfoValueDark]}>{user.approvalStatus || 'approved'}</Text>
             </View>
             <TouchableOpacity
               style={[tut.addBtn, profileSaving && tut.btnDisabled]}
@@ -7101,6 +7142,17 @@ const tut = StyleSheet.create({
     shadowRadius: 8,
     elevation: 3,
   },
+  profileCardDark: {
+    backgroundColor: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#1e293b',
+  },
+  profileTitle: {
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '900',
+    marginBottom: 14,
+  },
   profileAvatar: {
     width: 76,
     height: 76,
@@ -7113,7 +7165,7 @@ const tut = StyleSheet.create({
   },
   profileAvatarText: { color: '#0369a1', fontSize: 24, fontWeight: '900' },
   profileRole: {
-    color: '#0284c7',
+    color: '#94a3b8',
     fontSize: 11,
     fontWeight: '800',
     letterSpacing: 1,
@@ -7128,8 +7180,14 @@ const tut = StyleSheet.create({
     padding: 12,
     marginBottom: 12,
   },
+  profileInfoBoxDark: {
+    backgroundColor: '#111827',
+    borderColor: '#1f2937',
+  },
   profileInfoLabel: { color: '#64748b', fontSize: 11, fontWeight: '700', marginBottom: 2 },
   profileInfoValue: { color: '#0f172a', fontSize: 14, fontWeight: '800', marginBottom: 8 },
+  profileInfoLabelDark: { color: '#94a3b8' },
+  profileInfoValueDark: { color: '#f8fafc' },
   courseRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderTopWidth: 1, borderTopColor: '#f0f9ff', gap: 10 },
   courseIcon: { width: 44, height: 44, borderRadius: 12, backgroundColor: '#e0f2fe', alignItems: 'center', justifyContent: 'center' },
   courseName: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
@@ -7172,6 +7230,11 @@ const tut = StyleSheet.create({
     fontSize: 14,
     color: '#0f172a',
     marginBottom: 10,
+  },
+  profileInputDark: {
+    backgroundColor: '#111c34',
+    borderColor: '#334155',
+    color: '#e2e8f0',
   },
   addBtn: { backgroundColor: '#0ea5e9', borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   btnDisabled: { opacity: 0.7 },
@@ -7396,23 +7459,23 @@ const StudentDashboardShell = ({
         userName={user?.name}
         theme={{
           overlayColor: 'rgba(12, 23, 43, 0.5)',
-          panelColor: '#ffffff',
-          borderColor: '#e2e8f0',
-          eyebrowColor: '#64748b',
-          titleColor: '#1f3b72',
-          closeButtonColor: '#fee2e2',
-          closeButtonTextColor: '#b91c1c',
-          sectionTitleColor: '#7284a2',
-          itemColor: '#ffffff',
+          panelColor: '#0f172a',
+          borderColor: '#1e293b',
+          eyebrowColor: '#94a3b8',
+          titleColor: '#f8fafc',
+          closeButtonColor: '#1e293b',
+          closeButtonTextColor: '#f8fafc',
+          sectionTitleColor: '#94a3b8',
+          itemColor: '#111c34',
           activeItemColor: '#2f60d3',
-          itemTextColor: '#102a4f',
+          itemTextColor: '#e2e8f0',
           activeItemTextColor: '#ffffff',
           disabledTextColor: '#94a3b8',
-          iconBackgroundColor: '#eef4ff',
-          iconBorderColor: '#c9dafb',
+          iconBackgroundColor: '#172554',
+          iconBorderColor: '#1d4ed8',
           activeIconBackgroundColor: '#ffffff',
           activeIconBorderColor: '#e0eaff',
-          iconTextColor: '#2f60d3',
+          iconTextColor: '#bfdbfe',
           activeIconTextColor: '#2f60d3',
           badgeColor: '#ef4444',
           activeBadgeColor: '#ffffff',
@@ -8477,7 +8540,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             subtitle="Review and update your account details."
           />
 
-          <View style={studentDash.profileCard}>
+          <View style={[studentDash.profileCard, studentDash.profileCardDark]}>
             <View style={studentDash.profileAvatar}>
               <Text style={studentDash.profileAvatarText}>
                 {(user.name || 'S').split(' ').map((part) => part[0]).join('').toUpperCase().slice(0, 2)}
@@ -8486,7 +8549,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             <Text style={studentDash.profileRole}>STUDENT ACCOUNT</Text>
 
             <TextInput
-              style={studentDash.profileInput}
+              style={[studentDash.profileInput, studentDash.profileInputDark]}
               placeholder="Full name"
               value={profileName}
               onChangeText={setProfileName}
@@ -8495,7 +8558,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             />
 
             <TextInput
-              style={studentDash.profileInput}
+              style={[studentDash.profileInput, studentDash.profileInputDark]}
               placeholder="Email"
               value={profileEmail}
               onChangeText={setProfileEmail}
@@ -8506,18 +8569,18 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             />
 
             <TextInput
-              style={studentDash.profileInput}
+              style={[studentDash.profileInput, studentDash.profileInputDark]}
               placeholder="Grade"
               value={currentGrade || '-'}
               editable={false}
               placeholderTextColor="#8ca0c3"
             />
 
-            <View style={studentDash.profileInfoBox}>
-              <Text style={studentDash.profileInfoLabel}>Role</Text>
-              <Text style={studentDash.profileInfoValue}>Student</Text>
-              <Text style={studentDash.profileInfoLabel}>Status</Text>
-              <Text style={studentDash.profileInfoValue}>{user.approvalStatus || 'approved'}</Text>
+            <View style={[studentDash.profileInfoBox, studentDash.profileInfoBoxDark]}>
+              <Text style={[studentDash.profileInfoLabel, studentDash.profileInfoLabelDark]}>Role</Text>
+              <Text style={[studentDash.profileInfoValue, studentDash.profileInfoValueDark]}>Student</Text>
+              <Text style={[studentDash.profileInfoLabel, studentDash.profileInfoLabelDark]}>Status</Text>
+              <Text style={[studentDash.profileInfoValue, studentDash.profileInfoValueDark]}>{user.approvalStatus || 'approved'}</Text>
             </View>
 
             <TouchableOpacity
@@ -8793,6 +8856,10 @@ const studentDash = StyleSheet.create({
     borderColor: '#e3ebf6',
     padding: 20,
   },
+  profileCardDark: {
+    backgroundColor: '#0f172a',
+    borderColor: '#1e293b',
+  },
   profileAvatar: {
     width: 84,
     height: 84,
@@ -8805,7 +8872,7 @@ const studentDash = StyleSheet.create({
   },
   profileAvatarText: { color: '#1d4ed8', fontSize: 28, fontWeight: '900' },
   profileRole: {
-    color: '#355594',
+    color: '#94a3b8',
     fontSize: 11,
     fontWeight: '900',
     letterSpacing: 1,
@@ -8823,6 +8890,11 @@ const studentDash = StyleSheet.create({
     fontSize: 14,
     marginBottom: 12,
   },
+  profileInputDark: {
+    backgroundColor: '#111c34',
+    borderColor: '#334155',
+    color: '#e2e8f0',
+  },
   profileInfoBox: {
     backgroundColor: '#f6f9ff',
     borderRadius: 14,
@@ -8831,8 +8903,14 @@ const studentDash = StyleSheet.create({
     padding: 14,
     marginBottom: 16,
   },
+  profileInfoBoxDark: {
+    backgroundColor: '#111827',
+    borderColor: '#1f2937',
+  },
   profileInfoLabel: { color: '#74839e', fontSize: 11, fontWeight: '800', marginBottom: 4 },
   profileInfoValue: { color: '#1f2937', fontSize: 14, fontWeight: '800', marginBottom: 8 },
+  profileInfoLabelDark: { color: '#94a3b8' },
+  profileInfoValueDark: { color: '#f8fafc' },
   attendanceColumn: { width: '100%' },
   attendanceColumnWide: { flex: 1 },
   attendanceLiveCard: {
@@ -9487,8 +9565,17 @@ const chpw = StyleSheet.create({
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // MAIN APP
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const SplashHomeScreen = ({ onComplete, autoNavigate = false, duration = 2500 }) => {
+const SplashHomeScreen = ({
+  onComplete,
+  autoNavigate = false,
+  duration = 2500,
+  showActions = false,
+  onLoginPress,
+  onGetStartedPress,
+}) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [logoLoadFailed, setLogoLoadFailed] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
     Animated.timing(fadeAnim, {
@@ -9502,49 +9589,111 @@ const SplashHomeScreen = ({ onComplete, autoNavigate = false, duration = 2500 })
     }
 
     const timeout = setTimeout(() => {
-      onComplete();
+      setIsTransitioning(true);
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 900,
+        useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
+      }).start(({ finished }) => {
+        if (finished) {
+          onComplete();
+        } else {
+          setIsTransitioning(false);
+        }
+      });
     }, duration);
 
     return () => clearTimeout(timeout);
   }, [autoNavigate, duration, fadeAnim, onComplete]);
 
+  const handleManualContinue = () => {
+    if (isTransitioning) {
+      return;
+    }
+
+    setIsTransitioning(true);
+    Animated.timing(fadeAnim, {
+      toValue: 0,
+      duration: 900,
+      useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
+    }).start(({ finished }) => {
+      if (finished) {
+        (onGetStartedPress || onLoginPress || onComplete)?.();
+      } else {
+        setIsTransitioning(false);
+      }
+    });
+  };
+
   return (
-    <SafeAreaView style={splashHome.container}>
-      <View style={splashHome.gradientGlowTop} />
-      <View style={splashHome.gradientGlowBottom} />
-      <View style={splashHome.content}>
-        <Animated.View style={[splashHome.brandWrap, { opacity: fadeAnim }]}>
-          <Image
-            source={require('./assets/logo.jpeg')}
-            style={splashHome.image}
-            resizeMode="contain"
-          />
-        </Animated.View>
-        <ActivityIndicator size="small" color="#0ea5e9" style={splashHome.loader} />
-      </View>
-    </SafeAreaView>
+    <LinearGradient
+      colors={['#1FA2A6', '#1E6FD9', '#0F1C3F']}
+      locations={[0, 0.48, 1]}
+      start={{ x: 0.5, y: 0 }}
+      end={{ x: 0.5, y: 1 }}
+      style={splashHome.container}
+    >
+      <SafeAreaView style={splashHome.safeArea}>
+        <View style={splashHome.gradientGlowTop} />
+        <View style={splashHome.gradientGlowBottom} />
+        <View style={splashHome.content}>
+          <Animated.View style={[splashHome.brandWrap, { opacity: fadeAnim }]}>
+            <View style={splashHome.logoShell}>
+              {!logoLoadFailed ? (
+                <Image
+                  source={require('./assets/logo.jpeg')}
+                  style={splashHome.image}
+                  resizeMode="cover"
+                  onError={() => setLogoLoadFailed(true)}
+                />
+              ) : (
+                <View style={splashHome.logoFallback}>
+                  <Text style={splashHome.logoFallbackText}>NKEC</Text>
+                </View>
+              )}
+            </View>
+            <Text style={splashHome.brandTitle}>NKEC</Text>
+            <Text style={splashHome.brandSubtitle}>Smart Tuition Management Platform</Text>
+          </Animated.View>
+          {showActions ? (
+            <Animated.View style={[splashHome.actionWrap, { opacity: fadeAnim }]}>
+              <TouchableOpacity
+                style={[splashHome.primaryButton, isTransitioning && splashHome.primaryButtonDisabled]}
+                onPress={handleManualContinue}
+                disabled={isTransitioning}
+              >
+                <Text style={splashHome.primaryButtonText}>Get Started</Text>
+              </TouchableOpacity>
+            </Animated.View>
+          ) : (
+            <ActivityIndicator size="small" color="#ffffff" style={splashHome.loader} />
+          )}
+        </View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 };
 
 const splashHome = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1 },
+  safeArea: { flex: 1 },
   gradientGlowTop: {
     position: 'absolute',
-    top: -60,
-    right: -40,
-    width: 220,
-    height: 220,
-    borderRadius: 110,
-    backgroundColor: 'rgba(14, 165, 233, 0.10)',
-  },
-  gradientGlowBottom: {
-    position: 'absolute',
-    bottom: -80,
+    top: -70,
     left: -50,
     width: 240,
     height: 240,
     borderRadius: 120,
-    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+    backgroundColor: 'rgba(167, 243, 208, 0.16)',
+  },
+  gradientGlowBottom: {
+    position: 'absolute',
+    bottom: -90,
+    right: -60,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(153, 246, 228, 0.12)',
   },
   content: {
     flex: 1,
@@ -9558,8 +9707,75 @@ const splashHome = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  logoShell: {
+    width: 168,
+    height: 168,
+    borderRadius: 84,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.16,
+    shadowRadius: 22,
+    elevation: 10,
+    overflow: 'hidden',
+  },
   image: { width: '100%', height: '100%' },
+  logoFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#dbeafe',
+  },
+  logoFallbackText: {
+    color: '#1d4ed8',
+    fontSize: 30,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  brandTitle: {
+    marginTop: 22,
+    color: '#0f172a',
+    fontSize: 28,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  brandSubtitle: {
+    marginTop: 8,
+    color: '#64748b',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
   loader: { marginTop: 18 },
+  actionWrap: {
+    width: '100%',
+    maxWidth: 320,
+    marginTop: 24,
+    gap: 12,
+  },
+  primaryButton: {
+    backgroundColor: '#0ea5e9',
+    borderRadius: 14,
+    paddingVertical: 15,
+    alignItems: 'center',
+    shadowColor: '#0ea5e9',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.24,
+    shadowRadius: 16,
+    elevation: 6,
+  },
+  primaryButtonText: {
+    color: '#ffffff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.72,
+  },
 });
 
 export default function App() {
@@ -9575,6 +9791,9 @@ export default function App() {
 
   useEffect(() => {
     const splashStartedAt = Date.now();
+    let cancelled = false;
+    let timeoutId;
+
     const bootstrap = async () => {
       try {
         const savedToken = await AsyncStorage.getItem(TOKEN_KEY);
@@ -9587,11 +9806,23 @@ export default function App() {
         await AsyncStorage.removeItem(TOKEN_KEY);
       } finally {
         const elapsed = Date.now() - splashStartedAt;
-        const remaining = Math.max(2500 - elapsed, 0);
-        setTimeout(() => setBootLoading(false), remaining);
+        const remaining = Math.max(3000 - elapsed, 0);
+        timeoutId = setTimeout(() => {
+          if (!cancelled) {
+            setBootLoading(false);
+          }
+        }, remaining);
       }
     };
+
     bootstrap();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, []);
 
   /**
@@ -9663,7 +9894,14 @@ export default function App() {
   // â”€â”€ Not logged in â†’ show Auth screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!token || !user) {
     if (!showAuthScreen) {
-      return <SplashHomeScreen autoNavigate onComplete={() => setShowAuthScreen(true)} />;
+      return (
+        <SplashHomeScreen
+          showActions
+          onComplete={() => setShowAuthScreen(true)}
+          onLoginPress={() => setShowAuthScreen(true)}
+          onGetStartedPress={() => setShowAuthScreen(true)}
+        />
+      );
     }
 
     return (
