@@ -1,5 +1,12 @@
 const User = require('../models/User');
 const Student = require('../models/Student');
+const Enrollment = require('../models/Enrollment');
+const Payment = require('../models/Payment');
+const Suggestion = require('../models/Suggestion');
+const LeaveRequest = require('../models/LeaveRequest');
+const Attendance = require('../models/Attendance');
+const Salary = require('../models/Salary');
+const ExamMark = require('../models/ExamMark');
 
 const splitStudentName = (fullName) => {
   const parts = String(fullName || '').trim().split(/\s+/).filter(Boolean);
@@ -249,10 +256,67 @@ const updateUserRole = async (req, res, next) => {
   }
 };
 
+const deleteUser = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id).select('-password');
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    if (String(user._id) === String(req.user._id)) {
+      return res.status(400).json({ message: 'You cannot delete your own account while logged in.' });
+    }
+
+    const linkedStudent = await Student.findOne({
+      $or: [
+        { userId: user._id },
+        { email: String(user.email || '').toLowerCase() },
+      ],
+    });
+
+    if (linkedStudent) {
+      await Enrollment.deleteMany({ student: linkedStudent._id });
+      await Payment.deleteMany({
+        $or: [
+          { studentUser: user._id },
+          { studentProfile: linkedStudent._id },
+        ],
+      });
+      await Attendance.deleteMany({
+        $or: [
+          { studentUser: user._id },
+          { studentProfile: linkedStudent._id },
+          { tutorUser: user._id },
+        ],
+      });
+      await ExamMark.deleteMany({ student: linkedStudent._id });
+      await Student.findByIdAndDelete(linkedStudent._id);
+    } else {
+      await Payment.deleteMany({ studentUser: user._id });
+      await Attendance.deleteMany({
+        $or: [
+          { studentUser: user._id },
+          { tutorUser: user._id },
+        ],
+      });
+    }
+
+    await Salary.deleteMany({ tutorUser: user._id });
+    await Suggestion.deleteMany({ createdBy: user._id });
+    await LeaveRequest.deleteMany({ createdBy: user._id });
+    await User.findByIdAndDelete(user._id);
+
+    return res.status(200).json({ message: 'User deleted successfully.' });
+  } catch (error) {
+    return next(error);
+  }
+};
+
 module.exports = {
   getUserDirectory,
   getApprovedTutors,
   getPendingRegistrations,
   reviewRegistrationRequest,
   updateUserRole,
+  deleteUser,
 };

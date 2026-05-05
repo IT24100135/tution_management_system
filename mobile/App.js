@@ -12,6 +12,7 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
+  Modal,
   StatusBar,
   Text,
   TextInput,
@@ -131,7 +132,12 @@ const request = async (path, { method = 'GET', token, body } = {}) => {
     });
     const rawText = await response.text();
     const data = rawText ? JSON.parse(rawText) : {};
-    if (!response.ok) throw new Error(data.message || 'Request failed');
+    if (!response.ok) {
+      const requestError = new Error(data.message || 'Request failed');
+      requestError.status = response.status;
+      requestError.payload = data;
+      throw requestError;
+    }
     return data;
   } catch (error) {
     if (error?.name === 'AbortError') {
@@ -162,6 +168,19 @@ const formatCourseLabel = (course) => {
   const subject = String(course?.subject || course?.name || '').trim();
   const grade = String(course?.grade || '').trim();
   return [subject, grade].filter(Boolean).join(' - ') || 'Untitled Class';
+};
+
+const sanitizeRegistrationName = (value) => String(value || '').replace(/[^A-Za-z\s]/g, '');
+const isValidRegistrationName = (value) => /^[A-Za-z\s]+$/.test(String(value || '').trim());
+const isStrongPassword = (value) => /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{6,}$/.test(String(value || ''));
+const getPasswordRuleStatus = (value) => {
+  const passwordValue = String(value || '');
+  return {
+    hasLetter: /[A-Za-z]/.test(passwordValue),
+    hasNumber: /\d/.test(passwordValue),
+    hasSpecialCharacter: /[^A-Za-z\d]/.test(passwordValue),
+    hasMinLength: passwordValue.length >= 6,
+  };
 };
 
 const normalizeSubjectKey = (value) => String(value || '')
@@ -601,6 +620,86 @@ const openReceiptFile = (receipt) => {
   throw new Error('Viewing uploaded receipt files is currently supported on web only.');
 };
 
+const showPopupMessage = (title, message) => {
+  if (Platform.OS === 'web' && typeof globalThis.alert === 'function') {
+    globalThis.alert([title, message].filter(Boolean).join('\n\n'));
+    return;
+  }
+
+  Alert.alert(title, message);
+};
+
+const getNotificationKey = (notification, index = 0) => String(
+  notification?.id
+  || notification?.key
+  || notification?.title
+  || `notification-${index}`
+);
+
+const NotificationCenterModal = ({
+  visible,
+  title,
+  notifications = [],
+  onClose,
+  onMarkAsRead,
+  onMarkAllAsRead,
+}) => (
+  <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <View style={notificationModal.overlay}>
+      <View style={notificationModal.card}>
+        <View style={notificationModal.header}>
+          <View style={notificationModal.headerTextWrap}>
+            <Text style={notificationModal.title}>{title}</Text>
+            <Text style={notificationModal.subtitle}>
+              {notifications.length > 0 ? `${notifications.length} unread notification${notifications.length > 1 ? 's' : ''}` : 'All caught up'}
+            </Text>
+          </View>
+          <TouchableOpacity style={notificationModal.closeButton} onPress={onClose}>
+            <Text style={notificationModal.closeButtonText}>Close</Text>
+          </TouchableOpacity>
+        </View>
+
+        {notifications.length === 0 ? (
+          <View style={notificationModal.emptyState}>
+            <Text style={notificationModal.emptyTitle}>No new notifications right now.</Text>
+            <Text style={notificationModal.emptyDetail}>Any new dashboard changes will appear here.</Text>
+          </View>
+        ) : (
+          <ScrollView
+            style={notificationModal.scrollArea}
+            contentContainerStyle={notificationModal.scrollContent}
+            showsVerticalScrollIndicator={false}
+          >
+            {notifications.map((item, index) => (
+              <View key={getNotificationKey(item, index)} style={notificationModal.itemCard}>
+                <Text style={notificationModal.itemTitle}>{item.title}</Text>
+                {item.detail ? <Text style={notificationModal.itemDetail}>{item.detail}</Text> : null}
+                <TouchableOpacity
+                  style={notificationModal.markButton}
+                  onPress={() => onMarkAsRead(item, index)}
+                >
+                  <Text style={notificationModal.markButtonText}>Mark as Read</Text>
+                </TouchableOpacity>
+              </View>
+            ))}
+          </ScrollView>
+        )}
+
+        <View style={notificationModal.footer}>
+          {notifications.length > 1 ? (
+            <TouchableOpacity style={notificationModal.secondaryAction} onPress={onMarkAllAsRead}>
+              <Text style={notificationModal.secondaryActionText}>Mark All as Read</Text>
+            </TouchableOpacity>
+          ) : <View />}
+          <TouchableOpacity style={notificationModal.primaryAction} onPress={onClose}>
+            <Text style={notificationModal.primaryActionText}>Done</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </View>
+  </Modal>
+);
+
 const getTimetableEntryGrade = (entry, courses = []) => {
   const matchedCourse = findCourseForTimetableEntry(entry, courses);
   return String(
@@ -623,10 +722,30 @@ const getAdminUserStatusTone = (status) => {
   return 'green';
 };
 
+const SHOULD_USE_NATIVE_DRIVER = Platform.OS !== 'web';
+
+const WebForm = ({ children, onSubmit }) => {
+  if (Platform.OS === 'web') {
+    return (
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          onSubmit();
+        }}
+        style={{ margin: 0 }}
+      >
+        {children}
+      </form>
+    );
+  }
+
+  return <View>{children}</View>;
+};
+
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // AUTH SCREEN
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-const AuthScreen = ({ onAuthenticated }) => {
+const AuthScreen = ({ onAuthenticated, onGoHome }) => {
   const [mode, setMode] = useState('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -635,13 +754,23 @@ const AuthScreen = ({ onAuthenticated }) => {
   const [grade, setGrade] = useState('');
   const [requestedRole, setRequestedRole] = useState('student');
   const [loading, setLoading] = useState(false);
+  const [authNotice, setAuthNotice] = useState('');
   const [showSubjectOptions, setShowSubjectOptions] = useState(false);
   const [showGradeOptions, setShowGradeOptions] = useState(false);
   const isRegister = mode === 'register';
+  const passwordRuleStatus = getPasswordRuleStatus(password);
 
   const submit = async () => {
     if (!email || !password || (isRegister && !name)) {
       Alert.alert('Missing Fields', 'Please fill all required fields.');
+      return;
+    }
+    if (isRegister && !isValidRegistrationName(name)) {
+      Alert.alert('Invalid Full Name', 'Full name can contain letters only.');
+      return;
+    }
+    if (isRegister && !isStrongPassword(password)) {
+      Alert.alert('Invalid Password', 'Password must include letters, numbers, and at least one special character.');
       return;
     }
     if (isRegister && requestedRole === 'teacher' && !subject.trim()) {
@@ -652,6 +781,7 @@ const AuthScreen = ({ onAuthenticated }) => {
       Alert.alert('Missing Fields', 'Grade is required for student registration.');
       return;
     }
+    setAuthNotice('');
     setLoading(true);
     try {
       if (isRegister) {
@@ -675,6 +805,7 @@ const AuthScreen = ({ onAuthenticated }) => {
         setShowSubjectOptions(false);
         setShowGradeOptions(false);
         setPassword('');
+        setAuthNotice('Registration submitted successfully. Waitting for admin approvel.');
         return;
       }
 
@@ -682,7 +813,17 @@ const AuthScreen = ({ onAuthenticated }) => {
       await AsyncStorage.setItem(TOKEN_KEY, data.token);
       onAuthenticated(data.token, data.user || null);
     } catch (error) {
-      Alert.alert('Failed', error.message);
+      const errorMessage = String(error?.message || '').trim();
+      const normalizedErrorMessage = errorMessage.toLowerCase();
+      const isPendingApprovalError = error?.status === 403 && normalizedErrorMessage.includes('pending');
+
+      if (isPendingApprovalError) {
+        setAuthNotice('Waitting for admin approvel');
+        return;
+      }
+
+      setAuthNotice('');
+      Alert.alert('Failed', errorMessage || 'Login failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -702,6 +843,9 @@ const AuthScreen = ({ onAuthenticated }) => {
             style={{ flex: 1 }}
           >
             <ScrollView contentContainerStyle={auth.scroll} keyboardShouldPersistTaps="handled">
+          <TouchableOpacity style={auth.cornerHomeBtn} onPress={onGoHome}>
+            <MaterialIcons name="home" size={22} color="#ffffff" />
+          </TouchableOpacity>
           {/* Logo area */}
           <View style={auth.logoArea}>
             <View style={auth.logoCircle}>
@@ -718,17 +862,24 @@ const AuthScreen = ({ onAuthenticated }) => {
 
           {/* Card */}
           <View style={auth.card}>
+            <WebForm onSubmit={submit}>
             {/* Tab switcher */}
             <View style={auth.tabRow}>
               <TouchableOpacity
                 style={[auth.tab, mode === 'login' && auth.tabActive]}
-                onPress={() => setMode('login')}
+                onPress={() => {
+                  setMode('login');
+                  setAuthNotice('');
+                }}
               >
                 <Text style={[auth.tabText, mode === 'login' && auth.tabTextActive]}>Login</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[auth.tab, mode === 'register' && auth.tabActive]}
-                onPress={() => setMode('register')}
+                onPress={() => {
+                  setMode('register');
+                  setAuthNotice('');
+                }}
               >
                 <Text style={[auth.tabText, mode === 'register' && auth.tabTextActive]}>
                   Register
@@ -736,13 +887,22 @@ const AuthScreen = ({ onAuthenticated }) => {
               </TouchableOpacity>
             </View>
 
+            {authNotice ? (
+              <View style={auth.noticeBox}>
+                <Text style={auth.noticeText}>{authNotice}</Text>
+              </View>
+            ) : null}
+
             {isRegister && (
               <View style={auth.inputWrap}>
                 <Text style={auth.inputLabel}>Full Name</Text>
                 <TextInput
                   placeholder="Enter your full name"
                   value={name}
-                  onChangeText={setName}
+                  onChangeText={(value) => {
+                    setName(sanitizeRegistrationName(value));
+                    setAuthNotice('');
+                  }}
                   style={auth.input}
                   showSoftInputOnFocus
                   autoCorrect={false}
@@ -873,7 +1033,10 @@ const AuthScreen = ({ onAuthenticated }) => {
               <TextInput
                 placeholder="Enter your email"
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(value) => {
+                  setEmail(value);
+                  setAuthNotice('');
+                }}
                 style={auth.input}
                 autoCapitalize="none"
                 keyboardType="email-address"
@@ -888,12 +1051,37 @@ const AuthScreen = ({ onAuthenticated }) => {
               <TextInput
                 placeholder="Enter your password"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(value) => {
+                  setPassword(value);
+                  setAuthNotice('');
+                }}
+                onSubmitEditing={submit}
                 style={auth.input}
                 secureTextEntry
                 showSoftInputOnFocus
                 placeholderTextColor="#94a3b8"
               />
+              {isRegister ? (
+                <Text
+                  style={[
+                    auth.passwordRuleText,
+                    isStrongPassword(password) && auth.passwordRuleTextValid,
+                  ]}
+                >
+                  Password must include:
+                  {' '}
+                  {passwordRuleStatus.hasLetter ? 'letter' : 'letter'}
+                  ,
+                  {' '}
+                  {passwordRuleStatus.hasNumber ? 'number' : 'number'}
+                  ,
+                  {' '}
+                  {passwordRuleStatus.hasSpecialCharacter ? 'special character' : 'special character'}
+                  ,
+                  {' '}
+                  and at least 6 characters.
+                </Text>
+              ) : null}
             </View>
 
             <TouchableOpacity style={auth.btn} onPress={submit} disabled={loading}>
@@ -903,6 +1091,7 @@ const AuthScreen = ({ onAuthenticated }) => {
                 <Text style={auth.btnText}>{isRegister ? 'Submit Request' : 'Sign In'}</Text>
               )}
             </TouchableOpacity>
+            </WebForm>
           </View>
 
               <Text style={auth.version}>API: {API_BASE_URL}</Text>
@@ -919,13 +1108,24 @@ const auth = StyleSheet.create({
   background: { flex: 1 },
   backgroundImage: { opacity: 0.95 },
   backgroundOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.58)' },
-  scroll: { flexGrow: 1, padding: 24, justifyContent: 'center' },
-  logoArea: {
+  scroll: { flexGrow: 1, padding: 24, paddingTop: 44, justifyContent: 'flex-start' },
+  cornerHomeBtn: {
     position: 'absolute',
-    top: 48,
-    left: 24,
-    right: 24,
+    top: 18,
+    right: 18,
+    zIndex: 2,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.78)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.35)',
+  },
+  logoArea: {
+    alignItems: 'center',
+    marginBottom: 24,
   },
   logoCircle: {
     width: 80,
@@ -970,6 +1170,21 @@ const auth = StyleSheet.create({
   tabActive: { backgroundColor: '#0ea5e9' },
   tabText: { color: '#64748b', fontWeight: '600', fontSize: 14 },
   tabTextActive: { color: '#fff', fontWeight: '700' },
+  noticeBox: {
+    backgroundColor: '#45210f',
+    borderWidth: 1,
+    borderColor: '#f59e0b',
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  noticeText: {
+    color: '#fde68a',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
   inputWrap: { marginBottom: 14 },
   roleRow: { flexDirection: 'row', gap: 10 },
   roleBtn: {
@@ -988,6 +1203,8 @@ const auth = StyleSheet.create({
   roleBtnText: { color: '#94a3b8', fontWeight: '700', fontSize: 13 },
   roleBtnTextActive: { color: '#38bdf8' },
   helperText: { marginTop: 8, color: '#64748b', fontSize: 11 },
+  passwordRuleText: { marginTop: 8, color: '#fca5a5', fontSize: 11, lineHeight: 16 },
+  passwordRuleTextValid: { color: '#86efac' },
   inputLabel: { fontSize: 12, color: '#94a3b8', fontWeight: '600', marginBottom: 6, letterSpacing: 0.5 },
   input: {
     backgroundColor: '#0f172a',
@@ -1122,7 +1339,7 @@ const DashboardDrawer = ({
     Animated.timing(progress, {
       toValue: visible ? 1 : 0,
       duration: visible ? 240 : 200,
-      useNativeDriver: true,
+      useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
     }).start(({ finished }) => {
       if (finished && !visible) {
         setMounted(false);
@@ -1146,7 +1363,7 @@ const DashboardDrawer = ({
   const sections = getDrawerSections(menuItems);
 
   return (
-    <View style={drawer.overlayWrap} pointerEvents="box-none">
+    <View style={[drawer.overlayWrap, { pointerEvents: 'box-none' }]}>
       <AnimatedTouchableOpacity
         activeOpacity={1}
         onPress={onClose}
@@ -1314,9 +1531,29 @@ const WebDashboardShell = ({
   menuItems,
   onLogout,
   onOpenProfile,
+  notifications = [],
   children,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [readNotificationKeys, setReadNotificationKeys] = useState([]);
+  const activeNotificationKeys = notifications.map((item, index) => getNotificationKey(item, index));
+  const unreadNotifications = notifications.filter((item, index) => !readNotificationKeys.includes(getNotificationKey(item, index)));
+
+  useEffect(() => {
+    setReadNotificationKeys((previousKeys) => previousKeys.filter((key) => activeNotificationKeys.includes(key)));
+  }, [activeNotificationKeys.join('|')]);
+
+  const markNotificationAsRead = (notification, index) => {
+    const notificationKey = getNotificationKey(notification, index);
+    setReadNotificationKeys((previousKeys) => (
+      previousKeys.includes(notificationKey) ? previousKeys : [...previousKeys, notificationKey]
+    ));
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setReadNotificationKeys(activeNotificationKeys);
+  };
 
   return (
     <SafeAreaView style={webDash.page}>
@@ -1332,6 +1569,17 @@ const WebDashboardShell = ({
             </View>
           </View>
           <View style={webDash.headerActions}>
+            <TouchableOpacity
+              style={webDash.notificationButton}
+              onPress={() => setNotificationOpen(true)}
+            >
+              <MaterialIcons name="notifications-none" size={20} color="#0f172a" />
+              {unreadNotifications.length > 0 ? (
+                <View style={webDash.notificationBadge}>
+                  <Text style={webDash.notificationBadgeText}>{unreadNotifications.length > 9 ? '9+' : String(unreadNotifications.length)}</Text>
+                </View>
+              ) : null}
+            </TouchableOpacity>
             <TouchableOpacity style={webDash.profileButton} onPress={onOpenProfile}>
               <View style={webDash.profileGlyph}>
                 <View style={webDash.profileGlyphHead} />
@@ -1380,6 +1628,15 @@ const WebDashboardShell = ({
           footerButtonColor: '#dc2626',
           footerButtonTextColor: '#ffffff',
         }}
+      />
+
+      <NotificationCenterModal
+        visible={notificationOpen}
+        title={`${roleLabel} Notifications`}
+        notifications={unreadNotifications}
+        onClose={() => setNotificationOpen(false)}
+        onMarkAsRead={markNotificationAsRead}
+        onMarkAllAsRead={markAllNotificationsAsRead}
       />
 
       <View style={webDash.body}>
@@ -1611,6 +1868,31 @@ const webDash = StyleSheet.create({
   headerWelcomeText: { color: '#dbeafe', fontSize: 15, fontWeight: '900' },
   headerBrandText: { color: '#fff', fontSize: 18, fontWeight: '900', marginTop: 4, lineHeight: 21 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  notificationButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#e2e8f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#dc2626',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
   profileButton: {
     width: 36,
     height: 36,
@@ -1932,6 +2214,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   });
   const [pendingRequests, setPendingRequests] = useState([]);
   const [reviewingRequestId, setReviewingRequestId] = useState('');
+  const [deletingUserId, setDeletingUserId] = useState('');
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState('overview'); // overview | students | courses | timetable | approvals
   const [approvalView, setApprovalView] = useState('student'); // student | teacher
@@ -1994,6 +2277,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const [editingCourseId, setEditingCourseId] = useState('');
   const [editingCourseFee, setEditingCourseFee] = useState('');
   const [savingCourseFeeId, setSavingCourseFeeId] = useState('');
+  const [deletingCourseId, setDeletingCourseId] = useState('');
   const [timetable, setTimetable] = useState([]);
   const [ttGrade, setTtGrade] = useState('');
   const [showTtGradeOptions, setShowTtGradeOptions] = useState(false);
@@ -2121,6 +2405,28 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
 
     loadExamOptions();
   }, [token, selectedExamGrade, selectedExamTerm]);
+
+  const deleteAdminUser = async (directoryUser) => {
+    const userId = directoryUser.id || directoryUser._id;
+    if (!userId) {
+      showPopupMessage('Error', 'User id is missing.');
+      return;
+    }
+
+    setDeletingUserId(userId);
+    try {
+      const data = await request(`/api/users/${userId}`, {
+        method: 'DELETE',
+        token,
+      });
+      await loadAll();
+      showPopupMessage('Deleted', data.message || 'User deleted successfully.');
+    } catch (e) {
+      showPopupMessage('Error', e.message);
+    } finally {
+      setDeletingUserId('');
+    }
+  };
   useEffect(() => {
     if (!token || !selectedExamId) {
       setExamGradebook(null);
@@ -2205,8 +2511,14 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       setShowSubjectOptions(false);
       setCFee('');
       await loadAll();
-      Alert.alert('Success', 'Course added successfully.');
-    } catch (e) { Alert.alert('Error', e.message); }
+      showPopupMessage('Success', 'Course added successfully.');
+    } catch (e) {
+      if (e?.status === 409) {
+        showPopupMessage('Course Already Exists', e.message || `You already have ${subject} for ${grade}.`);
+      } else {
+        showPopupMessage('Error', e.message);
+      }
+    }
     finally { setCreatingCourse(false); }
   };
 
@@ -2254,6 +2566,25 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       Alert.alert('Error', e.message);
     } finally {
       setSavingCourseFeeId('');
+    }
+  };
+
+  const deleteCourse = async (course) => {
+    setDeletingCourseId(course._id);
+    try {
+      await request(`/api/courses/${course._id}`, {
+        method: 'DELETE',
+        token,
+      });
+      if (editingCourseId === course._id) {
+        cancelCourseFeeEdit();
+      }
+      await loadAll();
+      showPopupMessage('Deleted', 'Course removed successfully.');
+    } catch (e) {
+      showPopupMessage('Error', e.message);
+    } finally {
+      setDeletingCourseId('');
     }
   };
 
@@ -2754,7 +3085,16 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       ...adminUsers
         .map((directoryUser) => String(directoryUser.grade || '').trim())
       .filter(Boolean),
-    ])).sort((firstGrade, secondGrade) => firstGrade.localeCompare(secondGrade)),
+    ])).sort((firstGrade, secondGrade) => {
+      const firstGradeNumber = parseGradeNumber(firstGrade);
+      const secondGradeNumber = parseGradeNumber(secondGrade);
+
+      if (firstGradeNumber !== secondGradeNumber) {
+        return firstGradeNumber - secondGradeNumber;
+      }
+
+      return firstGrade.localeCompare(secondGrade);
+    }),
   ];
   const paymentGradeOptions = [
     ALL_GRADES_FILTER,
@@ -2764,15 +3104,26 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
         .map((payment) => String(payment.grade || payment.student?.grade || '').trim())
         .filter(Boolean),
     ]))
-      .sort((firstGrade, secondGrade) => firstGrade.localeCompare(secondGrade)),
+      .sort((firstGrade, secondGrade) => {
+        const firstGradeNumber = parseGradeNumber(firstGrade);
+        const secondGradeNumber = parseGradeNumber(secondGrade);
+
+        if (firstGradeNumber !== secondGradeNumber) {
+          return firstGradeNumber - secondGradeNumber;
+        }
+
+        return firstGrade.localeCompare(secondGrade);
+      }),
   ];
+  const isStudentRoleFilterActive = userRoleFilter === 'Student';
   const filteredPayments = paymentGradeFilter === ALL_GRADES_FILTER
     ? payments
     : payments.filter((payment) => String(payment.grade || payment.student?.grade || '').trim() === paymentGradeFilter);
   const filteredAdminUsers = adminUsers.filter((directoryUser) => {
     const matchesRole = userRoleFilter === ALL_USER_ROLES_FILTER
       || directoryUser.roleLabel === userRoleFilter;
-    const matchesGrade = userGradeFilter === ALL_GRADES_FILTER
+    const matchesGrade = !isStudentRoleFilterActive
+      || userGradeFilter === ALL_GRADES_FILTER
       || String(directoryUser.grade || '').trim() === userGradeFilter;
     const matchesStatus = userStatusFilter === ALL_USER_STATUSES_FILTER
       || directoryUser.statusLabel === userStatusFilter;
@@ -2872,6 +3223,33 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   ));
   const openAdminSuggestions = adminSuggestions.filter((item) => item.status === 'Open' || item.status === 'In Review');
   const resolvedAdminSuggestions = adminSuggestions.filter((item) => item.status === 'Resolved' || item.status === 'Closed');
+  const adminNotifications = [
+    pendingRequests.length > 0 ? {
+      id: 'admin-pending-users',
+      title: `${pendingRequests.length} user approval${pendingRequests.length > 1 ? 's are' : ' is'} waiting`,
+      detail: 'Review the Pending Users panel for new registrations.',
+    } : null,
+    pendingLeaveRequests.length > 0 ? {
+      id: 'admin-pending-leave',
+      title: `${pendingLeaveRequests.length} leave request${pendingLeaveRequests.length > 1 ? 's are' : ' is'} pending`,
+      detail: 'Open Leave Requests to approve or reject them.',
+    } : null,
+    payments.filter((item) => item.status === 'Pending').length > 0 ? {
+      id: 'admin-pending-payments',
+      title: `${payments.filter((item) => item.status === 'Pending').length} payment${payments.filter((item) => item.status === 'Pending').length > 1 ? 's are' : ' is'} awaiting review`,
+      detail: 'Student Payment Details has receipts that still need confirmation.',
+    } : null,
+    salaryRows.filter((item) => item.status === 'Pending').length > 0 ? {
+      id: 'admin-pending-salaries',
+      title: `${salaryRows.filter((item) => item.status === 'Pending').length} salary record${salaryRows.filter((item) => item.status === 'Pending').length > 1 ? 's are' : ' is'} pending`,
+      detail: 'Check Salary Details to review pending tutor payments.',
+    } : null,
+    openAdminSuggestions.length > 0 ? {
+      id: 'admin-open-suggestions',
+      title: `${openAdminSuggestions.length} suggestion${openAdminSuggestions.length > 1 ? 's need' : ' needs'} attention`,
+      detail: 'Open All Suggestions to review open or in-review feedback.',
+    } : null,
+  ].filter(Boolean);
   const adminMenuItems = [
     { key: 'overview', label: 'Dashboard', section: 'Overview', icon: 'dashboard' },
     { key: 'users', label: 'Users', section: 'Management', icon: 'groups' },
@@ -2903,6 +3281,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       activeTab={tab}
       onTabChange={setTab}
       menuItems={adminMenuItems}
+      notifications={adminNotifications}
       onLogout={onLogout}
       onOpenProfile={() => setTab('profile')}
     >
@@ -3076,12 +3455,16 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                   </TouchableOpacity>
                   {showUserRoleOptions ? (
                     <View style={adm.selectOptions}>
-                      {[ALL_USER_ROLES_FILTER, 'Admin', 'Tutor', 'Student'].map((option) => (
+                      {[ALL_USER_ROLES_FILTER, 'Tutor', 'Student'].map((option) => (
                         <TouchableOpacity
                           key={option}
                           style={[adm.selectOption, userRoleFilter === option && adm.selectOptionActive]}
                           onPress={() => {
                             setUserRoleFilter(option);
+                            if (option !== 'Student') {
+                              setUserGradeFilter(ALL_GRADES_FILTER);
+                              setShowUserGradeOptions(false);
+                            }
                             setShowUserRoleOptions(false);
                           }}
                         >
@@ -3097,19 +3480,24 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                 <View style={adm.userFilterField}>
                   <Text style={webDash.filterLabel}>Grade</Text>
                   <TouchableOpacity
-                    style={[adm.selectField, adm.userFilterSelect]}
+                    style={[
+                      adm.selectField,
+                      adm.userFilterSelect,
+                      !isStudentRoleFilterActive && { opacity: 0.55 },
+                    ]}
                     onPress={() => {
+                      if (!isStudentRoleFilterActive) return;
                       setShowUserRoleOptions(false);
                       setShowUserStatusOptions(false);
                       setShowUserGradeOptions((current) => !current);
                     }}
                   >
                     <Text style={userGradeFilter === ALL_GRADES_FILTER ? adm.selectFieldPlaceholder : adm.selectFieldText}>
-                      {userGradeFilter}
+                      {isStudentRoleFilterActive ? userGradeFilter : 'Available for Student only'}
                     </Text>
                     <Text style={adm.selectFieldArrow}>{showUserGradeOptions ? '^' : 'v'}</Text>
                   </TouchableOpacity>
-                  {showUserGradeOptions ? (
+                  {showUserGradeOptions && isStudentRoleFilterActive ? (
                     <View style={adm.selectOptions}>
                       {userGradeOptions.map((option) => (
                         <TouchableOpacity
@@ -3205,7 +3593,7 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             ) : (
               <View style={webDash.table}>
                 <View style={[webDash.tableRow, webDash.tableHeader]}>
-                  {['Name', 'Email', 'Role', 'Grade', 'Subject', 'Status'].map((heading) => (
+                  {['Name', 'Email', 'Role', 'Grade', 'Subject', 'Status', 'Actions'].map((heading) => (
                     <View key={heading} style={heading === 'Name' ? webDash.tableCellWide : webDash.tableCell}>
                       <Text style={webDash.tableHeadText}>{heading}</Text>
                     </View>
@@ -3237,6 +3625,17 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                       {directoryUser.approvalReason ? (
                         <Text style={adm.userTableSecondary}>{directoryUser.approvalReason}</Text>
                       ) : null}
+                    </View>
+                    <View style={webDash.tableCell}>
+                      <TouchableOpacity
+                        style={[adm.userDeleteBtn, deletingUserId === (directoryUser.id || directoryUser._id) && adm.actionBtnDisabled]}
+                        onPress={() => deleteAdminUser(directoryUser)}
+                        disabled={deletingUserId === (directoryUser.id || directoryUser._id)}
+                      >
+                        <Text style={adm.userDeleteBtnText}>
+                          {deletingUserId === (directoryUser.id || directoryUser._id) ? 'Deleting...' : 'Delete'}
+                        </Text>
+                      </TouchableOpacity>
                     </View>
                   </View>
                 ))}
@@ -3592,12 +3991,24 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                       <View style={adm.courseFeeActionWrap}>
                         <Text style={adm.feeText}>{formatLkr(c.fee)}</Text>
                         {editingCourseId !== c._id ? (
-                          <TouchableOpacity
-                            style={adm.courseInlineEditBtn}
-                            onPress={() => startCourseFeeEdit(c)}
-                          >
-                            <Text style={adm.courseInlineEditBtnText}>Edit Fee</Text>
-                          </TouchableOpacity>
+                          <>
+                            <TouchableOpacity
+                              style={adm.courseInlineEditBtn}
+                              onPress={() => startCourseFeeEdit(c)}
+                              disabled={deletingCourseId === c._id}
+                            >
+                              <Text style={adm.courseInlineEditBtnText}>Edit Fee</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              style={adm.courseInlineDeleteBtn}
+                              onPress={() => deleteCourse(c)}
+                              disabled={deletingCourseId === c._id}
+                            >
+                              <Text style={adm.courseInlineDeleteBtnText}>
+                                {deletingCourseId === c._id ? 'Deleting...' : 'Delete'}
+                              </Text>
+                            </TouchableOpacity>
+                          </>
                         ) : null}
                       </View>
                     </View>
@@ -4798,6 +5209,15 @@ const adm = StyleSheet.create({
     paddingVertical: 8,
   },
   courseInlineEditBtnText: { color: '#1d4ed8', fontWeight: '800', fontSize: 12 },
+  courseInlineDeleteBtn: {
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  courseInlineDeleteBtnText: { color: '#dc2626', fontWeight: '800', fontSize: 12 },
   courseInlineSaveBtn: {
     borderRadius: 10,
     backgroundColor: '#16a34a',
@@ -4852,6 +5272,16 @@ const adm = StyleSheet.create({
   userResetBtnText: { color: '#1d4ed8', fontSize: 12, fontWeight: '800' },
   userTablePrimary: { color: '#0f172a', fontWeight: '800' },
   userTableSecondary: { color: '#64748b', fontSize: 11, marginTop: 6, lineHeight: 16 },
+  userDeleteBtn: {
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    backgroundColor: '#fef2f2',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+  },
+  userDeleteBtnText: { color: '#dc2626', fontSize: 12, fontWeight: '800' },
   leaveTable: { minWidth: 1120 },
   leaveCompactTable: { minWidth: 720 },
   paymentTable: { minWidth: 1260 },
@@ -5451,9 +5881,9 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       setProfileName(data.user.name || '');
       setProfileEmail(data.user.email || '');
       setProfileSubject(data.user.subject || '');
-      Alert.alert('Updated', data.message || 'Tutor profile updated successfully.');
+      showPopupMessage('Updated', data.message || 'Tutor profile updated successfully.');
     } catch (e) {
-      Alert.alert('Error', e.message);
+      showPopupMessage('Error', e.message);
     } finally {
       setProfileSaving(false);
     }
@@ -5696,6 +6126,33 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const activeAttendanceSession = attendanceSessionData.session || null;
   const tutorAttendanceRows = attendanceSessionData.rows || [];
   const tutorAttendanceSessions = attendanceSessionData.todaySessions || [];
+  const tutorNotifications = [
+    tutorTodayClasses.length > 0 ? {
+      id: 'tutor-today-classes',
+      title: `${tutorTodayClasses.length} class${tutorTodayClasses.length > 1 ? 'es are' : ' is'} scheduled today`,
+      detail: 'Check My Classes for the latest timetable updates.',
+    } : null,
+    activeAttendanceSession ? {
+      id: 'tutor-active-attendance',
+      title: 'Attendance session is active',
+      detail: 'Attendance panel has a live class session ready to update.',
+    } : null,
+    pendingTutorLeaveRequests.length > 0 ? {
+      id: 'tutor-pending-leave',
+      title: `${pendingTutorLeaveRequests.length} leave request${pendingTutorLeaveRequests.length > 1 ? 's are' : ' is'} still pending`,
+      detail: 'Open Leave Requests to follow the current request status.',
+    } : null,
+    tutorSalaryStatus === 'Pending' ? {
+      id: 'tutor-pending-salary',
+      title: 'Current salary is pending',
+      detail: 'Salary Summary shows this month payment has not been marked as paid yet.',
+    } : null,
+    tutorAttendanceSessions.length > 0 ? {
+      id: 'tutor-attendance-updated',
+      title: `${tutorAttendanceSessions.length} attendance session${tutorAttendanceSessions.length > 1 ? 's were' : ' was'} recorded today`,
+      detail: 'Attendance records were updated for today.',
+    } : null,
+  ].filter(Boolean);
 
   return (
     <WebDashboardShell
@@ -5705,6 +6162,7 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       activeTab={tab}
       onTabChange={setTab}
       menuItems={tutorMenuItems}
+      notifications={tutorNotifications}
       onLogout={onLogout}
       onOpenProfile={() => setTab('profile')}
     >
@@ -6723,6 +7181,98 @@ const tut = StyleSheet.create({
 
 
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const notificationModal = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 23, 42, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 18,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 520,
+    maxHeight: '82%',
+    backgroundColor: '#ffffff',
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#dbe4f0',
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  headerTextWrap: { flex: 1 },
+  title: { fontSize: 20, fontWeight: '900', color: '#0f172a' },
+  subtitle: { marginTop: 4, fontSize: 13, color: '#64748b', fontWeight: '700' },
+  closeButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#eef2ff',
+  },
+  closeButtonText: { color: '#1d4ed8', fontWeight: '800', fontSize: 12 },
+  scrollArea: { flexGrow: 0 },
+  scrollContent: { gap: 12, paddingBottom: 8 },
+  emptyState: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#f8fbff',
+    paddingHorizontal: 18,
+    paddingVertical: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 160,
+  },
+  emptyTitle: { fontSize: 16, fontWeight: '900', color: '#0f172a', textAlign: 'center' },
+  emptyDetail: { marginTop: 8, fontSize: 13, color: '#64748b', textAlign: 'center', lineHeight: 19 },
+  itemCard: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#dbe4f0',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  itemTitle: { fontSize: 15, fontWeight: '900', color: '#0f172a', lineHeight: 21 },
+  itemDetail: { marginTop: 6, fontSize: 13, color: '#475569', lineHeight: 20 },
+  markButton: {
+    alignSelf: 'flex-start',
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    backgroundColor: '#dbeafe',
+  },
+  markButtonText: { color: '#1d4ed8', fontSize: 12, fontWeight: '900' },
+  footer: {
+    marginTop: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  secondaryAction: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#f1f5f9',
+  },
+  secondaryActionText: { color: '#334155', fontSize: 12, fontWeight: '900' },
+  primaryAction: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: '#1d4ed8',
+  },
+  primaryActionText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+});
+
 const STUDENT_WEEK_DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const STUDENT_WEEK_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const STUDENT_RESULT_TERMS = ['Term 1', 'Term 2', 'Term 3'];
@@ -6776,9 +7326,29 @@ const StudentDashboardShell = ({
   onLogout,
   onOpenProfile,
   isDesktop,
+  notifications = [],
   children,
 }) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [readNotificationKeys, setReadNotificationKeys] = useState([]);
+  const activeNotificationKeys = notifications.map((item, index) => getNotificationKey(item, index));
+  const unreadNotifications = notifications.filter((item, index) => !readNotificationKeys.includes(getNotificationKey(item, index)));
+
+  useEffect(() => {
+    setReadNotificationKeys((previousKeys) => previousKeys.filter((key) => activeNotificationKeys.includes(key)));
+  }, [activeNotificationKeys.join('|')]);
+
+  const markNotificationAsRead = (notification, index) => {
+    const notificationKey = getNotificationKey(notification, index);
+    setReadNotificationKeys((previousKeys) => (
+      previousKeys.includes(notificationKey) ? previousKeys : [...previousKeys, notificationKey]
+    ));
+  };
+
+  const markAllNotificationsAsRead = () => {
+    setReadNotificationKeys(activeNotificationKeys);
+  };
 
   return (
     <SafeAreaView style={studentShell.page}>
@@ -6794,6 +7364,17 @@ const StudentDashboardShell = ({
         </View>
 
         <View style={studentShell.headerRight}>
+          <TouchableOpacity
+            style={studentShell.notificationButton}
+            onPress={() => setNotificationOpen(true)}
+          >
+            <MaterialIcons name="notifications-none" size={20} color="#1f2937" />
+            {unreadNotifications.length > 0 ? (
+              <View style={studentShell.notificationBadge}>
+                <Text style={studentShell.notificationBadgeText}>{unreadNotifications.length > 9 ? '9+' : String(unreadNotifications.length)}</Text>
+              </View>
+            ) : null}
+          </TouchableOpacity>
           <TouchableOpacity style={studentShell.profileButton} onPress={onOpenProfile}>
             <View style={studentShell.profileGlyph}>
               <View style={studentShell.profileGlyphHead} />
@@ -6841,6 +7422,15 @@ const StudentDashboardShell = ({
           footerButtonColor: '#ef3b36',
           footerButtonTextColor: '#ffffff',
         }}
+      />
+
+      <NotificationCenterModal
+        visible={notificationOpen}
+        title="Student Notifications"
+        notifications={unreadNotifications}
+        onClose={() => setNotificationOpen(false)}
+        onMarkAsRead={markNotificationAsRead}
+        onMarkAllAsRead={markAllNotificationsAsRead}
       />
 
       <View style={[studentShell.body, isDesktop ? studentShell.bodyDesktop : studentShell.bodyMobile]}>
@@ -6969,12 +7559,14 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const todayDateKey = formatAppDate(liveNow);
   const courseList = Array.isArray(courses) ? courses.filter(Boolean) : [];
   const enrollmentList = Array.isArray(enrollments) ? enrollments.filter(Boolean) : [];
+  const activeEnrollmentList = enrollmentList.filter((item) => item.status === 'enrolled');
   const timetableEntries = Array.isArray(timetable) ? timetable.filter(Boolean) : [];
   const paymentList = Array.isArray(payments) ? payments.filter(Boolean) : [];
   const suggestionList = Array.isArray(suggestions) ? suggestions.filter(Boolean) : [];
   const attendanceRecords = Array.isArray(attendanceData?.records) ? attendanceData.records.filter(Boolean) : [];
   const assignedGrade =
     user.grade ||
+    activeEnrollmentList.find((item) => item.course?.grade)?.course?.grade ||
     enrollmentList.find((item) => item.course?.grade)?.course?.grade ||
     '';
   const currentGrade =
@@ -6997,6 +7589,8 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     .filter((entry) => entry.dayOfWeek === currentDayName)
     .sort((firstEntry, secondEntry) => compareTimes(firstEntry.startTime, secondEntry.startTime));
   const currentTimeMinutes = (liveNow.getHours() * 60) + liveNow.getMinutes();
+  const remainingTodayClasses = todayClasses
+    .filter((entry) => timeStringToMinutes(entry.endTime) >= currentTimeMinutes);
   const nextClassToday = todayClasses.find((entry) => timeStringToMinutes(entry.endTime) >= currentTimeMinutes) || null;
   const currentMonthKey = buildPaymentMonthKey(liveNow);
   const currentMonthPaymentAmount = calculateStudentMonthlyFee(currentGrade, enrollmentList);
@@ -7036,6 +7630,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     .reduce((sum, row) => sum + row.amount, 0);
   const uploadedReceiptCount = paymentRows.filter((row) => row.receipt?.dataUrl).length;
   const pendingPaymentsCount = paymentRows.filter((row) => row.status === 'Pending').length;
+  const openStudentSuggestions = suggestionList.filter((item) => item.status === 'Open' || item.status === 'In Review');
   const attendanceYear = liveNow.getFullYear();
   const attendanceMonthOptions = SALARY_MONTH_OPTIONS.map((option) => ({
     ...option,
@@ -7097,6 +7692,30 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     presentDays: Array.from(attendanceDaySummaryMap.values()).filter((daySummary) => daySummary.present > 0).length,
     absentDays: Array.from(attendanceDaySummaryMap.values()).filter((daySummary) => daySummary.absent > 0).length,
   };
+  const studentNotifications = [
+    remainingTodayClasses.length > 0 ? {
+      id: 'student-remaining-classes',
+      title: `${remainingTodayClasses.length} class${remainingTodayClasses.length > 1 ? 'es are' : ' is'} remaining today`,
+      detail: nextClassToday
+        ? `Next class: ${formatTimetableEntryTitle(nextClassToday, courseList)} at ${formatTimetableTime(nextClassToday.startTime)}.`
+        : 'Check Today\'s Classes for the remaining timetable.',
+    } : null,
+    pendingPaymentsCount > 0 ? {
+      id: 'student-pending-payments',
+      title: `${pendingPaymentsCount} payment${pendingPaymentsCount > 1 ? 's are' : ' is'} pending`,
+      detail: `Pending amount: ${formatLkr(pendingPaymentAmount)}.`,
+    } : null,
+    openStudentSuggestions.length > 0 ? {
+      id: 'student-open-suggestions',
+      title: `${openStudentSuggestions.length} suggestion${openStudentSuggestions.length > 1 ? 's are' : ' is'} still open`,
+      detail: 'Your submitted suggestions are still awaiting closure or review.',
+    } : null,
+    attendanceStats.absent > 0 ? {
+      id: 'student-absences',
+      title: `${attendanceStats.absent} absence${attendanceStats.absent > 1 ? 's were' : ' was'} recorded`,
+      detail: 'Attendance Overview has recent absent records for the selected month.',
+    } : null,
+  ].filter(Boolean);
   const attendanceCalendar = buildAttendanceCalendar({
     monthDate: selectedAttendanceMonthDate,
     records: selectedMonthAttendanceRecords,
@@ -7234,9 +7853,9 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       onUserUpdated(data.user);
       setProfileName(data.user.name || '');
       setProfileEmail(data.user.email || '');
-      Alert.alert('Updated', data.message || 'Student profile updated successfully.');
+      showPopupMessage('Updated', data.message || 'Student profile updated successfully.');
     } catch (e) {
-      Alert.alert('Error', e.message);
+      showPopupMessage('Error', e.message);
     } finally {
       setProfileSaving(false);
     }
@@ -7262,6 +7881,7 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       onLogout={onLogout}
       onOpenProfile={() => setTab('profile')}
       isDesktop={isDesktop}
+      notifications={studentNotifications}
     >
       {loading ? (
         <View style={studentDash.loadingWrap}>
@@ -7289,10 +7909,10 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             <View style={[studentDash.panel, isWide && studentDash.splitPanel]}>
               <Text style={studentDash.panelTitle}>Today's Classes</Text>
               <View style={studentDash.placeholderCard}>
-                {todayClasses.length === 0 ? (
+                {remainingTodayClasses.length === 0 ? (
                   <Text style={studentDash.placeholderText}>No classes scheduled for today.</Text>
                 ) : (
-                  todayClasses.map((entry) => (
+                  remainingTodayClasses.map((entry) => (
                     <View key={entry._id} style={studentDash.classRow}>
                       <Text style={studentDash.classTitle}>{formatTimetableEntryTitle(entry, courseList)}</Text>
                       <Text style={studentDash.classMeta}>{entry.startTime} - {entry.endTime}</Text>
@@ -7947,6 +8567,31 @@ const studentShell = StyleSheet.create({
   pageTitle: { color: '#fff', fontSize: 16, fontWeight: '800' },
   brandName: { color: '#f7f9ff', fontSize: 15, fontWeight: '900', marginTop: 4, lineHeight: 18 },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  notificationButton: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: '#f3f4f6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -3,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    paddingHorizontal: 4,
+    backgroundColor: '#ef4444',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '900',
+  },
   profileButton: {
     width: 38,
     height: 38,
@@ -8660,6 +9305,10 @@ const ChangePasswordScreen = ({ token, user, onPasswordChanged, onLogout }) => {
       setError('New password must be at least 6 characters.');
       return;
     }
+    if (!isStrongPassword(newPassword)) {
+      setError('New password must include letters, numbers, and at least one special character.');
+      return;
+    }
     if (newPassword !== confirmPassword) {
       setError('New password and confirm password do not match.');
       return;
@@ -8708,6 +9357,7 @@ const ChangePasswordScreen = ({ token, user, onPasswordChanged, onLogout }) => {
 
           {/* Form card */}
           <View style={chpw.card}>
+            <WebForm onSubmit={handleSubmit}>
             {/* Error message */}
             {error ? (
               <View style={chpw.errorBox}>
@@ -8749,6 +9399,7 @@ const ChangePasswordScreen = ({ token, user, onPasswordChanged, onLogout }) => {
                 placeholderTextColor="#94a3b8"
                 value={confirmPassword}
                 onChangeText={setConfirmPassword}
+                onSubmitEditing={handleSubmit}
                 secureTextEntry
                 showSoftInputOnFocus
               />
@@ -8765,6 +9416,7 @@ const ChangePasswordScreen = ({ token, user, onPasswordChanged, onLogout }) => {
             <TouchableOpacity style={chpw.logoutLink} onPress={onLogout}>
               <Text style={chpw.logoutLinkText}>â† Back to Login</Text>
             </TouchableOpacity>
+            </WebForm>
           </View>
 
           <Text style={chpw.note}>
@@ -8835,10 +9487,86 @@ const chpw = StyleSheet.create({
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // MAIN APP
 // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const SplashHomeScreen = ({ onComplete, autoNavigate = false, duration = 2500 }) => {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1400,
+      useNativeDriver: SHOULD_USE_NATIVE_DRIVER,
+    }).start();
+
+    if (!autoNavigate || typeof onComplete !== 'function') {
+      return undefined;
+    }
+
+    const timeout = setTimeout(() => {
+      onComplete();
+    }, duration);
+
+    return () => clearTimeout(timeout);
+  }, [autoNavigate, duration, fadeAnim, onComplete]);
+
+  return (
+    <SafeAreaView style={splashHome.container}>
+      <View style={splashHome.gradientGlowTop} />
+      <View style={splashHome.gradientGlowBottom} />
+      <View style={splashHome.content}>
+        <Animated.View style={[splashHome.brandWrap, { opacity: fadeAnim }]}>
+          <Image
+            source={require('./assets/logo.jpeg')}
+            style={splashHome.image}
+            resizeMode="contain"
+          />
+        </Animated.View>
+        <ActivityIndicator size="small" color="#0ea5e9" style={splashHome.loader} />
+      </View>
+    </SafeAreaView>
+  );
+};
+
+const splashHome = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#ffffff' },
+  gradientGlowTop: {
+    position: 'absolute',
+    top: -60,
+    right: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+    backgroundColor: 'rgba(14, 165, 233, 0.10)',
+  },
+  gradientGlowBottom: {
+    position: 'absolute',
+    bottom: -80,
+    left: -50,
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(59, 130, 246, 0.08)',
+  },
+  content: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+    paddingVertical: 32,
+  },
+  brandWrap: {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  image: { width: '100%', height: '100%' },
+  loader: { marginTop: 18 },
+});
+
 export default function App() {
   const [token, setToken] = useState('');
   const [user, setUser] = useState(null);
   const [bootLoading, setBootLoading] = useState(true);
+  const [showAuthScreen, setShowAuthScreen] = useState(true);
 
   const loadProfile = async (activeToken) => {
     const data = await request('/api/auth/me', { token: activeToken });
@@ -8846,7 +9574,7 @@ export default function App() {
   };
 
   useEffect(() => {
-    const timeout = setTimeout(() => setBootLoading(false), 10000);
+    const splashStartedAt = Date.now();
     const bootstrap = async () => {
       try {
         const savedToken = await AsyncStorage.getItem(TOKEN_KEY);
@@ -8858,8 +9586,9 @@ export default function App() {
       } catch {
         await AsyncStorage.removeItem(TOKEN_KEY);
       } finally {
-        clearTimeout(timeout);
-        setBootLoading(false);
+        const elapsed = Date.now() - splashStartedAt;
+        const remaining = Math.max(2500 - elapsed, 0);
+        setTimeout(() => setBootLoading(false), remaining);
       }
     };
     bootstrap();
@@ -8872,6 +9601,7 @@ export default function App() {
   const handleAuthenticated = async (newToken, userData) => {
     await AsyncStorage.setItem(TOKEN_KEY, newToken);
     setToken(newToken);
+    setShowAuthScreen(false);
     if (userData) {
       setUser(userData);
     } else {
@@ -8902,25 +9632,46 @@ export default function App() {
     } finally {
       setToken('');
       setUser(null);
+      setShowAuthScreen(false);
+    }
+  };
+
+  const deleteCourse = async (course) => {
+    setDeletingCourseId(course._id);
+    try {
+      await request(`/api/courses/${course._id}`, {
+        method: 'DELETE',
+        token,
+      });
+      if (editingCourseId === course._id) {
+        cancelCourseFeeEdit();
+      }
+      await loadAll();
+      showPopupMessage('Deleted', 'Course removed successfully.');
+    } catch (e) {
+      showPopupMessage('Error', e.message);
+    } finally {
+      setDeletingCourseId('');
     }
   };
 
   // â”€â”€ Boot splash screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (bootLoading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: '#0f172a', alignItems: 'center', justifyContent: 'center' }}>
-        <View style={{ width: 72, height: 72, borderRadius: 36, backgroundColor: '#0ea5e9', alignItems: 'center', justifyContent: 'center', marginBottom: 20 }}>
-          <Text style={{ fontSize: 32 }}>ðŸŽ“</Text>
-        </View>
-        <ActivityIndicator size="large" color="#0ea5e9" />
-        <Text style={{ color: '#94a3b8', marginTop: 14, fontSize: 14, fontWeight: '600' }}>Loading TuitionApp...</Text>
-      </SafeAreaView>
-    );
+    return <SplashHomeScreen />;
   }
 
   // â”€â”€ Not logged in â†’ show Auth screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   if (!token || !user) {
-    return <AuthScreen onAuthenticated={handleAuthenticated} />;
+    if (!showAuthScreen) {
+      return <SplashHomeScreen autoNavigate onComplete={() => setShowAuthScreen(true)} />;
+    }
+
+    return (
+      <AuthScreen
+        onAuthenticated={handleAuthenticated}
+        onGoHome={() => setShowAuthScreen(false)}
+      />
+    );
   }
 
   // â”€â”€ Forced password change â†’ show Change Password screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€

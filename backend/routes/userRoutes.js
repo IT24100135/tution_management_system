@@ -7,6 +7,7 @@ const {
   updateUserRole,
   getPendingRegistrations,
   reviewRegistrationRequest,
+  deleteUser,
 } = require('../controllers/userController');
 
 const router = express.Router();
@@ -19,5 +20,6 @@ router.get('/tutors', getApprovedTutors);
 router.get('/pending-registrations', getPendingRegistrations);
 router.patch('/:id/registration-review', validateRegistrationReview, reviewRegistrationRequest);
 router.patch('/:id/role', validateRoleUpdate, updateUserRole);
+router.delete('/:id', deleteUser);
 
 module.exports = router;

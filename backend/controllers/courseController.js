@@ -1,6 +1,28 @@
 const Course = require('../models/Course');
 const Enrollment = require('../models/Enrollment');
 
+const normalizeCourseValue = (value) => String(value || '').trim();
+
+const findDuplicateGradeSubjectCourse = async ({ subject, grade, excludeId = null }) => {
+  const normalizedSubject = normalizeCourseValue(subject);
+  const normalizedGrade = normalizeCourseValue(grade);
+
+  if (!normalizedSubject || !normalizedGrade) {
+    return null;
+  }
+
+  const query = {
+    subject: new RegExp(`^${normalizedSubject.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+    grade: new RegExp(`^${normalizedGrade.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i'),
+  };
+
+  if (excludeId) {
+    query._id = { $ne: excludeId };
+  }
+
+  return Course.findOne(query);
+};
+
 const createCourse = async (req, res, next) => {
   try {
     const { name, code, description, subject, grade, hallAllocation, fee, status } = req.body;
@@ -8,6 +30,13 @@ const createCourse = async (req, res, next) => {
     const existingCourse = await Course.findOne({ code: code.toUpperCase() });
     if (existingCourse) {
       return res.status(409).json({ message: 'Course with this code already exists.' });
+    }
+
+    const duplicateGradeSubjectCourse = await findDuplicateGradeSubjectCourse({ subject, grade });
+    if (duplicateGradeSubjectCourse) {
+      return res.status(409).json({
+        message: `A ${normalizeCourseValue(subject)} course already exists for ${normalizeCourseValue(grade)}.`,
+      });
     }
 
     const course = await Course.create({
@@ -92,6 +121,17 @@ const updateCourse = async (req, res, next) => {
         course[field] = req.body[field];
       }
     });
+
+    const duplicateGradeSubjectCourse = await findDuplicateGradeSubjectCourse({
+      subject: course.subject,
+      grade: course.grade,
+      excludeId: course._id,
+    });
+    if (duplicateGradeSubjectCourse) {
+      return res.status(409).json({
+        message: `A ${normalizeCourseValue(course.subject)} course already exists for ${normalizeCourseValue(course.grade)}.`,
+      });
+    }
 
     const updatedCourse = await course.save();
 

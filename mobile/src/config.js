@@ -40,6 +40,15 @@ const getHostFromExpo = () => {
     || '';
 };
 
+const getHostFromWindow = () => {
+  if (Platform.OS !== 'web' || !globalThis.location) {
+    return '';
+  }
+
+  const browserHost = extractHost(globalThis.location.origin || globalThis.location.href || '');
+  return browserHost || '';
+};
+
 const buildBaseUrlFromHost = (host) => `http://${host}:${DEFAULT_PORT}`;
 
 const resolveApiBaseUrl = () => {
@@ -47,6 +56,13 @@ const resolveApiBaseUrl = () => {
   // EXPO_PUBLIC_API_BASE_URL=http://192.168.1.10:5000
   const envBaseUrl = process.env.EXPO_PUBLIC_API_BASE_URL;
   if (envBaseUrl) return trimTrailingSlash(envBaseUrl);
+
+  // On web, prefer the browser host so localhost web points to localhost backend,
+  // and LAN-hosted web points back to the same machine's backend.
+  const browserHost = getHostFromWindow();
+  if (browserHost) {
+    return buildBaseUrlFromHost(browserHost);
+  }
 
   // Stable explicit override from Expo config.
   const expoExtra = readExpoExtra();

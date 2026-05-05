@@ -36,7 +36,7 @@ const createEnrollment = async (req, res, next) => {
 
     const populatedEnrollment = await Enrollment.findById(enrollment._id)
       .populate('student', 'firstName lastName email')
-      .populate('course', 'name code subject fee')
+      .populate('course', 'name code subject grade fee')
       .populate('enrolledBy', 'name email role');
 
     return res.status(201).json({
@@ -77,7 +77,7 @@ const getEnrollments = async (req, res, next) => {
 
     const enrollments = await Enrollment.find(query)
       .populate('student', 'firstName lastName email')
-      .populate('course', 'name code subject fee')
+      .populate('course', 'name code subject grade fee')
       .populate('enrolledBy', 'name email role')
       .sort({ createdAt: -1 });
 
@@ -94,7 +94,7 @@ const getEnrollmentById = async (req, res, next) => {
   try {
     const enrollment = await Enrollment.findById(req.params.id)
       .populate('student', 'firstName lastName email')
-      .populate('course', 'name code subject fee')
+      .populate('course', 'name code subject grade fee')
       .populate('enrolledBy', 'name email role');
 
     if (!enrollment) {
@@ -134,7 +134,7 @@ const updateEnrollment = async (req, res, next) => {
 
     const updatedEnrollment = await Enrollment.findById(enrollment._id)
       .populate('student', 'firstName lastName email')
-      .populate('course', 'name code subject fee')
+      .populate('course', 'name code subject grade fee')
       .populate('enrolledBy', 'name email role');
 
     return res.status(200).json({

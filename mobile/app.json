@@ -10,6 +10,7 @@
     },
     "userInterfaceStyle": "light",
     "splash": {
+      "image": "./assets/logo.jpeg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

@@ -1,5 +1,7 @@
 const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || '').trim());
+const isValidRegistrationName = (value) => /^[A-Za-z\s]+$/.test(String(value || '').trim());
+const isStrongPassword = (value) => /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{6,}$/.test(String(value || ''));
 const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 
 const validateRegister = (req, res, next) => {
@@ -13,8 +15,16 @@ const validateRegister = (req, res, next) => {
     return res.status(400).json({ message: 'Please provide a valid email address.' });
   }
 
+  if (!isValidRegistrationName(name)) {
+    return res.status(400).json({ message: 'Full name can contain letters only.' });
+  }
+
   if (String(password).length < 6) {
     return res.status(400).json({ message: 'Password must be at least 6 characters long.' });
+  }
+
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({ message: 'Password must include letters, numbers, and at least one special character.' });
   }
 
   if (requestedRole && !['student', 'teacher', 'tutor'].includes(requestedRole)) {
@@ -63,6 +73,10 @@ const validateChangePassword = (req, res, next) => {
 
   if (String(newPassword).length < 6) {
     return res.status(400).json({ message: 'New password must be at least 6 characters long.' });
+  }
+
+  if (!isStrongPassword(newPassword)) {
+    return res.status(400).json({ message: 'New password must include letters, numbers, and at least one special character.' });
   }
 
   return next();
