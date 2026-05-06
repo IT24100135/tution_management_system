@@ -80,7 +80,7 @@ const PROJECT_SUBJECT_OPTIONS = Array.from(
     return subjectMap;
   }, new Map()).values(),
 );
-const BRAND_NAME = 'NEW KRISHNA EDUCATION CENTER-KODIKAMAM';
+const BRAND_NAME = 'NKEC';
 const TIMETABLE_HALL_OPTIONS = ['Hall 1', 'Hall 2', 'Hall 3', 'Hall 4', 'Hall 5'];
 const SALARY_MONTH_OPTIONS = [
   { value: '01', label: 'January' },
@@ -468,6 +468,124 @@ const getDaysForMonth = (yearValue, monthValue) => {
 
   const dayCount = new Date(year, month, 0).getDate();
   return Array.from({ length: dayCount }, (_, index) => String(index + 1).padStart(2, '0'));
+};
+
+const getAllowedMonthOptions = (yearValue, referenceDate = new Date()) => {
+  const selectedYear = Number(yearValue);
+  const currentYear = referenceDate.getFullYear();
+  const currentMonth = referenceDate.getMonth() + 1;
+
+  if (!Number.isInteger(selectedYear)) {
+    return [];
+  }
+
+  if (selectedYear > currentYear) {
+    return SALARY_MONTH_OPTIONS;
+  }
+
+  return SALARY_MONTH_OPTIONS.filter((option) => Number(option.value) >= currentMonth);
+};
+
+const getAllowedDayOptions = (yearValue, monthValue, referenceDate = new Date()) => {
+  const selectedYear = Number(yearValue);
+  const selectedMonth = Number(monthValue);
+  const currentYear = referenceDate.getFullYear();
+  const currentMonth = referenceDate.getMonth() + 1;
+  const currentDay = referenceDate.getDate();
+  const allDays = getDaysForMonth(yearValue, monthValue);
+
+  if (
+    !Number.isInteger(selectedYear)
+    || !Number.isInteger(selectedMonth)
+    || selectedMonth < 1
+    || selectedMonth > 12
+  ) {
+    return [];
+  }
+
+  if (selectedYear === currentYear && selectedMonth === currentMonth) {
+    return allDays.filter((day) => Number(day) >= currentDay);
+  }
+
+  return allDays;
+};
+
+const isDateOnOrAfterToday = (yearValue, monthValue, dayValue, referenceDate = new Date()) => {
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+  const day = Number(dayValue);
+
+  if (
+    !Number.isInteger(year)
+    || !Number.isInteger(month)
+    || !Number.isInteger(day)
+    || month < 1
+    || month > 12
+    || day < 1
+    || day > 31
+  ) {
+    return false;
+  }
+
+  const selectedDate = new Date(year, month - 1, day);
+  const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  return selectedDate >= today;
+};
+
+const LEAVE_CALENDAR_WEEK_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+const buildLeaveRequestCalendar = (yearValue, monthValue, referenceDate = new Date(), selectedDateKey = '') => {
+  const year = Number(yearValue);
+  const month = Number(monthValue);
+
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return {
+      monthLabel: '',
+      availableDayCount: 0,
+      cells: [],
+    };
+  }
+
+  const firstWeekDay = new Date(year, month - 1, 1).getDay();
+  const totalDays = new Date(year, month, 0).getDate();
+  const today = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), referenceDate.getDate());
+  const cells = [];
+  let availableDayCount = 0;
+
+  for (let index = 0; index < firstWeekDay; index += 1) {
+    cells.push({ key: `blank-start-${index}`, day: null, dateKey: '', isDisabled: true, isToday: false, isSelected: false });
+  }
+
+  for (let day = 1; day <= totalDays; day += 1) {
+    const currentDate = new Date(year, month - 1, day);
+    const dateKey = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isDisabled = currentDate < today;
+    const isToday = currentDate.getTime() === today.getTime();
+    const isSelected = dateKey === selectedDateKey;
+
+    if (!isDisabled) {
+      availableDayCount += 1;
+    }
+
+    cells.push({
+      key: dateKey,
+      day,
+      dateKey,
+      isDisabled,
+      isToday,
+      isSelected,
+    });
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push({ key: `blank-end-${cells.length}`, day: null, dateKey: '', isDisabled: true, isToday: false, isSelected: false });
+  }
+
+  return {
+    monthLabel: new Date(year, month - 1, 1).toLocaleString('en-US', { month: 'long', year: 'numeric' }),
+    availableDayCount,
+    cells,
+  };
 };
 
 const formatLongDate = (dateValue) => {
@@ -2152,6 +2270,78 @@ const webDash = StyleSheet.create({
     paddingVertical: 8,
   },
   quickDateChipText: { color: '#2563eb', fontSize: 12, fontWeight: '800' },
+  leaveCalendarCard: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#f8fbff',
+    padding: 14,
+  },
+  leaveCalendarHeader: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 14,
+  },
+  leaveCalendarTitle: { color: '#0f172a', fontSize: 14, fontWeight: '900' },
+  leaveCalendarHint: { color: '#64748b', fontSize: 12, fontWeight: '700' },
+  leaveCalendarGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    justifyContent: 'space-between',
+  },
+  leaveCalendarDayLabel: {
+    width: '13%',
+    color: '#8a98ac',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  leaveCalendarCell: {
+    width: '13%',
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#dbeafe',
+    backgroundColor: '#ffffff',
+  },
+  leaveCalendarCellEmpty: {
+    borderColor: 'transparent',
+    backgroundColor: 'transparent',
+  },
+  leaveCalendarCellDisabled: {
+    backgroundColor: '#f8fafc',
+    borderColor: '#e2e8f0',
+    opacity: 0.4,
+  },
+  leaveCalendarCellToday: {
+    backgroundColor: '#eff6ff',
+    borderColor: '#60a5fa',
+  },
+  leaveCalendarCellSelected: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#2563eb',
+    borderWidth: 2,
+  },
+  leaveCalendarCellText: { color: '#334155', fontSize: 13, fontWeight: '800' },
+  leaveCalendarCellTextDisabled: { color: '#94a3b8' },
+  leaveCalendarCellTextToday: { color: '#1d4ed8', fontWeight: '900' },
+  leaveCalendarCellTextSelected: { color: '#1d4ed8', fontWeight: '900' },
+  leaveCalendarEmptyState: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: '#cbd5e1',
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 14,
+    paddingVertical: 18,
+  },
+  leaveCalendarEmptyText: { color: '#64748b', fontSize: 12, fontWeight: '700', textAlign: 'center' },
   selectedDateBox: {
     marginTop: 4,
     borderRadius: 12,
@@ -3293,8 +3483,8 @@ const AdminDashboard = ({ token, user, onUserUpdated, onLogout }) => {
 
   return (
     <WebDashboardShell
-      welcome="Welcome, System Admin!"
-      roleLabel="System Admin"
+      welcome="Welcome, Admin!"
+      roleLabel="Admin"
       user={user}
       activeTab={tab}
       onTabChange={setTab}
@@ -5834,6 +6024,27 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
     setLeaveDate(buildIsoDateString(leaveDateYear, leaveDateMonth, leaveDateDay));
   }, [leaveDateYear, leaveDateMonth, leaveDateDay]);
   useEffect(() => {
+    if (!leaveDateMonth) {
+      return;
+    }
+
+    const allowedMonthValues = getAllowedMonthOptions(leaveDateYear, liveNow).map((option) => option.value);
+    if (!allowedMonthValues.includes(leaveDateMonth)) {
+      setLeaveDateMonth('');
+      setLeaveDateDay('');
+    }
+  }, [leaveDateYear, leaveDateMonth, liveNow]);
+  useEffect(() => {
+    if (!leaveDateDay) {
+      return;
+    }
+
+    const allowedDayValues = getAllowedDayOptions(leaveDateYear, leaveDateMonth, liveNow);
+    if (!allowedDayValues.includes(leaveDateDay)) {
+      setLeaveDateDay('');
+    }
+  }, [leaveDateYear, leaveDateMonth, leaveDateDay, liveNow]);
+  useEffect(() => {
     if (!token) return;
 
     const loadTutorExamOptions = async () => {
@@ -5893,9 +6104,18 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
       return;
     }
 
-    setLeaveDateYear(String(parsedDate.getFullYear()));
-    setLeaveDateMonth(String(parsedDate.getMonth() + 1).padStart(2, '0'));
-    setLeaveDateDay(String(parsedDate.getDate()).padStart(2, '0'));
+    const yearValue = String(parsedDate.getFullYear());
+    const monthValue = String(parsedDate.getMonth() + 1).padStart(2, '0');
+    const dayValue = String(parsedDate.getDate()).padStart(2, '0');
+
+    if (!isDateOnOrAfterToday(yearValue, monthValue, dayValue, liveNow)) {
+      Alert.alert('Invalid Date', 'Please choose today or a future date for your leave request.');
+      return;
+    }
+
+    setLeaveDateYear(yearValue);
+    setLeaveDateMonth(monthValue);
+    setLeaveDateDay(dayValue);
     setShowLeaveYearOptions(false);
     setShowLeaveMonthOptions(false);
     setShowLeaveDayOptions(false);
@@ -5963,6 +6183,23 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const submitLeaveRequest = async () => {
     if (!leaveDate.trim() || !leaveReason.trim()) {
       Alert.alert('Missing Fields', 'Leave date and reason are required.');
+      return;
+    }
+
+    const allowedMonthValues = getAllowedMonthOptions(leaveDateYear, liveNow).map((option) => option.value);
+    if (!allowedMonthValues.includes(leaveDateMonth)) {
+      Alert.alert('Invalid Month', 'Please choose the current month or a future month for your leave request.');
+      return;
+    }
+
+    const allowedDayValues = getAllowedDayOptions(leaveDateYear, leaveDateMonth, liveNow);
+    if (!allowedDayValues.includes(leaveDateDay)) {
+      Alert.alert('Invalid Day', 'Please choose today or a future date for your leave request.');
+      return;
+    }
+
+    if (!isDateOnOrAfterToday(leaveDateYear, leaveDateMonth, leaveDateDay, liveNow)) {
+      Alert.alert('Invalid Date', 'Please choose today or a future date for your leave request.');
       return;
     }
 
@@ -6124,7 +6361,9 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   ];
   const selectedTutorExam = tutorExamOptions.find((exam) => exam.id === selectedTutorExamId) || tutorExamOptions[0] || null;
   const leaveYearOptions = Array.from({ length: 3 }, (_, index) => String(new Date().getFullYear() + index));
-  const leaveDayOptions = getDaysForMonth(leaveDateYear, leaveDateMonth);
+  const leaveMonthOptions = getAllowedMonthOptions(leaveDateYear, liveNow);
+  const leaveDayOptions = getAllowedDayOptions(leaveDateYear, leaveDateMonth, liveNow);
+  const leaveCalendar = buildLeaveRequestCalendar(leaveDateYear, leaveDateMonth, liveNow, leaveDate);
   const selectedLeaveDateLabel = leaveDate ? formatLongDate(leaveDate) : 'No leave date selected yet.';
   const currentSalaryMonthKey = buildPaymentMonthKey(liveNow);
   const currentDayName = STUDENT_WEEK_DAYS[liveNow.getDay()];
@@ -6745,6 +6984,7 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                           onPress={() => {
                             setLeaveDateYear(option);
                             setLeaveDateDay('');
+                            setShowLeaveDayOptions(false);
                             setShowLeaveYearOptions(false);
                           }}
                         >
@@ -6771,13 +7011,14 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                   </TouchableOpacity>
                   {showLeaveMonthOptions ? (
                     <View style={adm.selectOptions}>
-                      {SALARY_MONTH_OPTIONS.map((option) => (
+                      {leaveMonthOptions.map((option) => (
                         <TouchableOpacity
                           key={option.value}
                           style={[adm.selectOption, leaveDateMonth === option.value && adm.selectOptionActive]}
                           onPress={() => {
                             setLeaveDateMonth(option.value);
                             setLeaveDateDay('');
+                            setShowLeaveDayOptions(false);
                             setShowLeaveMonthOptions(false);
                           }}
                         >
@@ -6789,37 +7030,75 @@ const TutorDashboard = ({ token, user, onUserUpdated, onLogout }) => {
                 </View>
                 <View style={webDash.filterField}>
                   <Text style={webDash.filterLabel}>Day</Text>
-                  <TouchableOpacity
-                    style={adm.paymentSelectBox}
-                    onPress={() => {
-                      if (!leaveDateYear || !leaveDateMonth) {
-                        Alert.alert('Select Year and Month', 'Choose the year and month before picking the day.');
-                        return;
-                      }
-                      setShowLeaveYearOptions(false);
-                      setShowLeaveMonthOptions(false);
-                      setShowLeaveDayOptions((current) => !current);
-                    }}
-                  >
-                    <Text style={webDash.selectText}>{leaveDateDay || 'Select day'}</Text>
-                    <Text style={adm.selectFieldArrow}>{showLeaveDayOptions ? '^' : 'v'}</Text>
-                  </TouchableOpacity>
-                  {showLeaveDayOptions ? (
-                    <View style={adm.selectOptions}>
-                      {leaveDayOptions.map((option) => (
-                        <TouchableOpacity
-                          key={option}
-                          style={[adm.selectOption, leaveDateDay === option && adm.selectOptionActive]}
-                          onPress={() => {
-                            setLeaveDateDay(option);
-                            setShowLeaveDayOptions(false);
-                          }}
-                        >
-                          <Text style={[adm.selectOptionText, leaveDateDay === option && adm.selectOptionTextActive]}>{option}</Text>
-                        </TouchableOpacity>
-                      ))}
+                  {!leaveDateYear || !leaveDateMonth ? (
+                    <View style={webDash.leaveCalendarEmptyState}>
+                      <Text style={webDash.leaveCalendarEmptyText}>Choose the year and month to view the calendar.</Text>
                     </View>
-                  ) : null}
+                  ) : leaveDayOptions.length === 0 ? (
+                    <View style={webDash.leaveCalendarEmptyState}>
+                      <Text style={webDash.leaveCalendarEmptyText}>Only today or future dates can be selected for this month.</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <TouchableOpacity
+                        style={adm.paymentSelectBox}
+                        onPress={() => {
+                          setShowLeaveYearOptions(false);
+                          setShowLeaveMonthOptions(false);
+                          setShowLeaveDayOptions((current) => !current);
+                        }}
+                      >
+                        <Text style={webDash.selectText}>{leaveDateDay || 'Select day'}</Text>
+                        <Text style={adm.selectFieldArrow}>{showLeaveDayOptions ? '^' : 'v'}</Text>
+                      </TouchableOpacity>
+                      {showLeaveDayOptions ? (
+                        <View style={webDash.leaveCalendarCard}>
+                          <View style={webDash.leaveCalendarHeader}>
+                            <Text style={webDash.leaveCalendarTitle}>{leaveCalendar.monthLabel}</Text>
+                            <Text style={webDash.leaveCalendarHint}>{`${leaveCalendar.availableDayCount} selectable days`}</Text>
+                          </View>
+                          <View style={webDash.leaveCalendarGrid}>
+                            {LEAVE_CALENDAR_WEEK_SHORT.map((dayLabel) => (
+                              <Text key={dayLabel} style={webDash.leaveCalendarDayLabel}>{dayLabel}</Text>
+                            ))}
+                            {leaveCalendar.cells.map((dayCell) => (
+                              <TouchableOpacity
+                                key={dayCell.key}
+                                style={[
+                                  webDash.leaveCalendarCell,
+                                  !dayCell.day && webDash.leaveCalendarCellEmpty,
+                                  dayCell.isDisabled && dayCell.day && webDash.leaveCalendarCellDisabled,
+                                  dayCell.isToday && !dayCell.isDisabled && webDash.leaveCalendarCellToday,
+                                  dayCell.isSelected && !dayCell.isDisabled && webDash.leaveCalendarCellSelected,
+                                ]}
+                                disabled={!dayCell.day || dayCell.isDisabled}
+                                onPress={() => {
+                                  if (!dayCell.dateKey || dayCell.isDisabled) {
+                                    return;
+                                  }
+                                  setLeaveDateDay(String(dayCell.day).padStart(2, '0'));
+                                  setShowLeaveDayOptions(false);
+                                }}
+                              >
+                                {dayCell.day ? (
+                                  <Text
+                                    style={[
+                                      webDash.leaveCalendarCellText,
+                                      dayCell.isDisabled && webDash.leaveCalendarCellTextDisabled,
+                                      dayCell.isToday && !dayCell.isDisabled && webDash.leaveCalendarCellTextToday,
+                                      dayCell.isSelected && !dayCell.isDisabled && webDash.leaveCalendarCellTextSelected,
+                                    ]}
+                                  >
+                                    {dayCell.day}
+                                  </Text>
+                                ) : null}
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                        </View>
+                      ) : null}
+                    </>
+                  )}
                 </View>
               </View>
               <View style={webDash.selectedDateBox}>
@@ -9652,7 +9931,7 @@ const SplashHomeScreen = ({
                 </View>
               )}
             </View>
-            <Text style={splashHome.brandTitle}>NKEC</Text>
+            <Text style={splashHome.brandTitle}>NEW KRISHNA EDUCATION CENTER</Text>
             <Text style={splashHome.brandSubtitle}>Smart Tuition Management Platform</Text>
           </Animated.View>
           {showActions ? (
@@ -9741,6 +10020,7 @@ const splashHome = StyleSheet.create({
     fontSize: 28,
     fontWeight: '900',
     letterSpacing: 1,
+    textAlign: 'center',
   },
   brandSubtitle: {
     marginTop: 8,
