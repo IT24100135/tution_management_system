@@ -3,6 +3,11 @@ const isValidTime = (value) => /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value |
 const isValidRegistrationName = (value) => /^[A-Za-z\s]+$/.test(String(value || '').trim());
 const isStrongPassword = (value) => /^(?=.*[A-Za-z])(?=.*\d)(?=.*[^A-Za-z\d]).{6,}$/.test(String(value || ''));
 const TIMETABLE_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+const SUGGESTION_MESSAGE_WORD_LIMIT = 150;
+const countWords = (value) => {
+  const trimmedValue = String(value || '').trim();
+  return trimmedValue ? trimmedValue.split(/\s+/).filter(Boolean).length : 0;
+};
 
 const validateRegister = (req, res, next) => {
   const { name, email, password, requestedRole, subject, grade } = req.body;
@@ -371,6 +376,10 @@ const validateSuggestionCreate = (req, res, next) => {
 
   if (!message || !String(message).trim()) {
     return res.status(400).json({ message: 'Message is required.' });
+  }
+
+  if (countWords(message) > SUGGESTION_MESSAGE_WORD_LIMIT) {
+    return res.status(400).json({ message: `Message must be ${SUGGESTION_MESSAGE_WORD_LIMIT} words or fewer.` });
   }
 
   if (title !== undefined && typeof title !== 'string') {

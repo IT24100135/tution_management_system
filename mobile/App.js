@@ -108,6 +108,7 @@ const TIMETABLE_TIME_SLOTS = [
 ];
 const EXAM_TERM_OPTIONS = ['Term 1', 'Term 2', 'Term 3'];
 const SUGGESTION_STATUS_OPTIONS = ['Open', 'In Review', 'Resolved', 'Closed'];
+const SUGGESTION_MESSAGE_WORD_LIMIT = 150;
 const LEAVE_REQUEST_STATUS_OPTIONS = ['Pending', 'Approved', 'Rejected'];
 const REQUEST_TIMEOUT_MS = 12000;
 const ADMIN_TIMETABLE_LIMITED_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
@@ -219,6 +220,10 @@ const calculateStudentMonthlyFee = (grade, enrollments = []) => {
 };
 
 const formatLkr = (amount) => `Rs. ${Number(amount || 0).toLocaleString('en-LK')}`;
+const countWords = (value) => {
+  const trimmedValue = String(value || '').trim();
+  return trimmedValue ? trimmedValue.split(/\s+/).filter(Boolean).length : 0;
+};
 
 const findCourseForTimetableEntry = (entry, courses = []) => {
   const directCourseId = entry?.courseId?._id || entry?.courseId || '';
@@ -7818,6 +7823,8 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const [suggestions, setSuggestions] = useState([]);
   const [submittingSuggestion, setSubmittingSuggestion] = useState(false);
   const [submittingPaymentMonthKey, setSubmittingPaymentMonthKey] = useState('');
+  const suggestionWordCount = countWords(suggestionText);
+  const isSuggestionOverLimit = suggestionWordCount > SUGGESTION_MESSAGE_WORD_LIMIT;
 
   const loadData = async () => {
     setLoading(true);
@@ -8106,6 +8113,11 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
   const submitSuggestion = async () => {
     if (!suggestionText.trim()) {
       Alert.alert('Missing details', 'Please enter your suggestion or complaint first.');
+      return;
+    }
+
+    if (isSuggestionOverLimit) {
+      Alert.alert('Message too long', `Please keep your message within ${SUGGESTION_MESSAGE_WORD_LIMIT} words.`);
       return;
     }
 
@@ -8796,7 +8808,11 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
             </View>
 
             <TextInput
-              style={[studentDash.textInput, studentDash.textArea]}
+              style={[
+                studentDash.textInput,
+                studentDash.textArea,
+                isSuggestionOverLimit && studentDash.textInputError,
+              ]}
               placeholder="Write your message here"
               value={suggestionText}
               onChangeText={setSuggestionText}
@@ -8804,8 +8820,19 @@ const StudentDashboard = ({ token, user, onUserUpdated, onLogout }) => {
               placeholderTextColor="#8ca0c3"
               textAlignVertical="top"
             />
+            <Text style={[studentDash.helperText, isSuggestionOverLimit && studentDash.helperTextError]}>
+              {suggestionWordCount}/{SUGGESTION_MESSAGE_WORD_LIMIT} words
+              {isSuggestionOverLimit ? ' - Please shorten your message before submitting.' : ''}
+            </Text>
 
-            <TouchableOpacity style={studentDash.primaryButton} onPress={submitSuggestion} disabled={submittingSuggestion}>
+            <TouchableOpacity
+              style={[
+                studentDash.primaryButton,
+                (submittingSuggestion || isSuggestionOverLimit) && studentDash.primaryButtonDisabled,
+              ]}
+              onPress={submitSuggestion}
+              disabled={submittingSuggestion || isSuggestionOverLimit}
+            >
               <Text style={studentDash.primaryButtonText}>{submittingSuggestion ? 'Submitting...' : 'Submit Message'}</Text>
             </TouchableOpacity>
           </View>
@@ -9627,7 +9654,10 @@ const studentDash = StyleSheet.create({
     color: '#1f2937',
     fontSize: 14,
   },
+  textInputError: { borderColor: '#dc2626' },
   textArea: { minHeight: 140, marginBottom: 16 },
+  helperText: { color: '#64748b', fontSize: 12, fontWeight: '700', marginTop: -8, marginBottom: 16 },
+  helperTextError: { color: '#dc2626' },
   primaryButton: {
     backgroundColor: '#355594',
     borderRadius: 14,
